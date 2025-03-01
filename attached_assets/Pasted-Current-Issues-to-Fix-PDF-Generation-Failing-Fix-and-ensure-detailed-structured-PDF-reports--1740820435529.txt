@@ -1,0 +1,43 @@
+Current Issues to Fix:
+✅ PDF Generation Failing → Fix and ensure detailed, structured PDF reports.
+✅ Add a Toggle Button → Switch between Simulation Mode (default) and Real Network Tracking using Scapy.
+✅ Remove Unnecessary Code → Optimize and clean up the entire codebase.
+✅ Improve Code Structure → Follow best practices for modularity and efficiency.
+✅ README.md File → Provide step-by-step instructions for setting up and running the project.
+✅ Project Explanation Document (.md) → Include functionalities, requirements, features, and screenshots for better understanding.
+
+Required Fixes & Enhancements:
+🔹 Fix PDF Generation & Reporting
+Implement structured, professional reports using ReportLab or PyPDF2.
+Include:
+Threat Summary (Attack Type, Severity, Source/Destination IPs, Timestamp)
+Network Traffic Graphs (Live Insights, Protocol Distribution)
+Heat Maps & Attack Patterns
+Actionable Recommendations
+Ensure one-click report download in PDF format.
+🔹 Add a Toggle Button for Network Mode
+Default Mode: Simulation (Pre-recorded network data)
+Real Mode: Scapy-Based Live Network Traffic Capture
+Implement Scapy code but disable execution on Replit to prevent errors.
+Provide instructions in README.md on how to enable real network tracking.
+🔹 Code Optimization & Cleanup
+Remove redundant/unnecessary code.
+Refactor code into modules for better maintainability.
+Ensure best practices in Python for performance optimization.
+🔹 README.md for Project Setup & Usage
+Step-by-step guide on installation and running the project.
+How to switch between Simulation and Real Mode.
+How to generate reports and interpret dashboard insights.
+🔹 Project Documentation (.md File)
+Detailed explanation of functionalities.
+List of requirements (tech stack, dependencies).
+Description of all features (Attack Detection, Heat Map, Reports, etc.).
+Screenshots & GIFs for better understanding.
+Final Deliverables:
+✅ Fully Working PDF Generation with Structured Reports.
+✅ Toggle Button for Simulation ↔ Real Network Tracking.
+✅ Clean & Optimized Codebase.
+✅ README.md for Installation & Usage.
+✅ Project Documentation (.md) with Functionalities, Features & Screenshots.
+
+🚀 Objective: Ensure a fully functional, well-documented, optimized security dashboard that is easy to use, professional, and structured for real-world applications.

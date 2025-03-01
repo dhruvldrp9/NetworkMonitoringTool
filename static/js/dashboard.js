@@ -8,6 +8,39 @@ let connectionHeatmap = null;
 let attackPatternChart = null;
 let recentThreats = [];
 
+// Add mode toggle functionality
+const modeToggle = document.getElementById('modeToggle');
+const modeLabel = document.getElementById('modeLabel');
+
+modeToggle.addEventListener('change', async () => {
+    const isSimulation = modeToggle.checked;
+    modeLabel.textContent = isSimulation ? 'Simulation Mode' : 'Real Network Mode';
+
+    try {
+        const response = await fetch('/api/toggle-mode', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ simulation: isSimulation })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to toggle mode');
+        }
+
+        const result = await response.json();
+        console.log(`Switched to ${result.mode} mode`);
+    } catch (error) {
+        console.error('Error toggling mode:', error);
+        // Revert toggle if request failed
+        modeToggle.checked = !modeToggle.checked;
+        modeLabel.textContent = modeToggle.checked ? 'Simulation Mode' : 'Real Network Mode';
+        alert('Failed to switch modes. Please try again.');
+    }
+});
+
+
 // Initialize dashboard with loading states
 document.addEventListener('DOMContentLoaded', () => {
     // Show loading states
@@ -278,6 +311,7 @@ function updateTopIPs(ips) {
         .join('');
 }
 
+// Improve PDF report generation
 async function generatePDFReport() {
     const spinner = document.getElementById('loadingSpinner');
     spinner.style.display = 'block';

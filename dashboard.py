@@ -31,10 +31,11 @@ logging.getLogger('engineio').setLevel(logging.INFO)
 app = Flask(__name__)
 socketio = SocketIO(app, async_mode='threading', cors_allowed_origins='*', logger=True, engineio_logger=True)
 
-# Global analyzer instance
+# Global variables
 analyzer = None
 analyzer_thread = None
 stats_thread = None
+simulation_mode = True  # Default to simulation mode
 
 @app.route('/')
 def dashboard():
@@ -56,6 +57,22 @@ def get_initial_stats():
     except Exception as e:
         logger.error(f"Error getting initial stats: {e}", exc_info=True)
         return jsonify({'error': 'Failed to get statistics'}), 500
+
+@app.route('/api/toggle-mode', methods=['POST'])
+def toggle_mode():
+    """Toggle between simulation and real network tracking modes"""
+    global simulation_mode
+    try:
+        simulation_mode = request.json.get('simulation', True)
+        if analyzer:
+            analyzer.set_simulation_mode(simulation_mode)
+        return jsonify({
+            'success': True,
+            'mode': 'simulation' if simulation_mode else 'real'
+        })
+    except Exception as e:
+        logger.error(f"Error toggling mode: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/generate_report', methods=['POST'])
 def generate_report():
@@ -244,7 +261,10 @@ def generate_report():
         # Recommendations
         elements.append(Spacer(1, 20))
         elements.append(Paragraph("Security Recommendations", heading_style))
-        recommendations = """
+        mode_text = "Simulation Mode" if simulation_mode else "Real Network Traffic Mode"
+        recommendations = f"""
+        Current Operating Mode: {mode_text}
+
         Based on the analysis of network traffic and detected threats, we recommend:
         1. Regular monitoring of high-risk IPs identified in this report
         2. Implementation of additional security measures for frequently targeted services
