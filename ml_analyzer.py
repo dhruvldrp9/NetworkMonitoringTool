@@ -3,12 +3,16 @@ import logging
 from typing import List, Dict, Any
 from collections import deque
 import time
+from sklearn.ensemble import IsolationForest
+from sklearn.preprocessing import StandardScaler
+import joblib
+import os
 
 logger = logging.getLogger(__name__)
 
 class MLAnalyzer:
     def __init__(self, window_size: int = 1000):
-        """Initialize analyzer with statistical detection"""
+        """Initialize analyzer with ML and statistical detection"""
         self.window_size = window_size
         self.packet_history = deque(maxlen=window_size)
 
@@ -22,23 +26,137 @@ class MLAnalyzer:
             'packet_sizes': []
         }
 
+        # ML components
+        self.scaler = StandardScaler()
+        self.model = IsolationForest(
+            n_estimators=100,
+            max_samples='auto',
+            contamination=0.1,
+            random_state=42
+        )
+        self.model_trained = False
+        self.min_samples_for_training = 100
+
+        # Load existing model if available
+        self._load_model()
+
     def detect_anomalies(self, packet_info: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Detect anomalies using simple statistical analysis"""
+        """Detect anomalies using ML and statistical analysis"""
         try:
             # Update packet history and stats
             self.packet_history.append(packet_info)
             self._update_stats(packet_info)
 
-            # Run anomaly checks
+            # Extract features
+            features = self.extract_features(packet_info)
+
+            # Train model if enough data is collected
+            if (len(self.packet_history) >= self.min_samples_for_training and 
+                not self.model_trained):
+                self._train_model()
+
             anomalies = []
-            anomalies.extend(self._check_packet_size_anomalies(packet_info))
-            anomalies.extend(self._check_rate_anomalies(packet_info))
-            anomalies.extend(self._check_protocol_anomalies(packet_info))
+
+            # ML-based detection if model is trained
+            if self.model_trained:
+                try:
+                    # Scale features
+                    scaled_features = self.scaler.transform(features.reshape(1, -1))
+                    # Predict (-1 for anomaly, 1 for normal)
+                    prediction = self.model.predict(scaled_features)
+
+                    if prediction[0] == -1:  # Anomaly detected
+                        score = self.model.score_samples(scaled_features)
+                        confidence = 1 - (score[0] + 0.5)  # Convert to 0-1 scale
+
+                        anomalies.append({
+                            'type': 'ML_ANOMALY',
+                            'source': packet_info['src_ip'],
+                            'details': 'Machine Learning detected unusual pattern',
+                            'confidence': float(confidence),
+                            'severity': 'high' if confidence > 0.8 else 'medium',
+                            'category': 'anomaly'
+                        })
+                except Exception as e:
+                    logger.error(f"Error in ML prediction: {e}")
+                    # Fall back to statistical analysis
+                    anomalies.extend(self._statistical_analysis(packet_info))
+            else:
+                # Use statistical analysis until model is trained
+                anomalies.extend(self._statistical_analysis(packet_info))
+
             return anomalies
 
         except Exception as e:
             logger.error(f"Error in anomaly detection: {e}")
             return []
+
+    def _statistical_analysis(self, packet_info: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Fallback statistical analysis"""
+        anomalies = []
+        anomalies.extend(self._check_packet_size_anomalies(packet_info))
+        anomalies.extend(self._check_rate_anomalies(packet_info))
+        anomalies.extend(self._check_protocol_anomalies(packet_info))
+        return anomalies
+
+    def _train_model(self):
+        """Train the ML model on collected data"""
+        try:
+            # Extract features from historical data
+            feature_matrix = np.array([
+                self.extract_features(packet)
+                for packet in self.packet_history
+            ])
+
+            # Fit scaler
+            self.scaler.fit(feature_matrix)
+            scaled_features = self.scaler.transform(feature_matrix)
+
+            # Train model
+            self.model.fit(scaled_features)
+            self.model_trained = True
+
+            # Save model
+            self._save_model()
+
+            logger.info("ML model successfully trained")
+        except Exception as e:
+            logger.error(f"Error training ML model: {e}")
+
+    def extract_features(self, packet_info: Dict[str, Any]) -> np.ndarray:
+        """Extract features for ML analysis"""
+        features = [
+            packet_info['length'],  # Packet size
+            hash(packet_info['src_ip']) % 1000,  # Source IP hash
+            hash(packet_info['dst_ip']) % 1000,  # Destination IP hash
+            hash(packet_info['protocol']) % 100,  # Protocol hash
+            len(self.baseline_stats['unique_ips']),  # Number of unique IPs
+            len(self.baseline_stats['protocol_counts']),  # Number of protocols
+            sum(self.baseline_stats['packets_per_second'][-10:]) / 10 if self.baseline_stats['packets_per_second'] else 0,  # Recent packet rate
+            np.mean(self.baseline_stats['packet_sizes']) if self.baseline_stats['packet_sizes'] else 0  # Average packet size
+        ]
+        return np.array(features, dtype=float)
+
+    def _save_model(self):
+        """Save ML model and scaler"""
+        try:
+            if not os.path.exists('models'):
+                os.makedirs('models')
+            joblib.dump(self.model, 'models/anomaly_detector.joblib')
+            joblib.dump(self.scaler, 'models/scaler.joblib')
+        except Exception as e:
+            logger.error(f"Error saving model: {e}")
+
+    def _load_model(self):
+        """Load existing ML model and scaler"""
+        try:
+            if os.path.exists('models/anomaly_detector.joblib'):
+                self.model = joblib.load('models/anomaly_detector.joblib')
+                self.scaler = joblib.load('models/scaler.joblib')
+                self.model_trained = True
+                logger.info("Loaded existing ML model")
+        except Exception as e:
+            logger.error(f"Error loading model: {e}")
 
     def _update_stats(self, packet_info: Dict[str, Any]) -> None:
         """Update statistical baselines"""
@@ -85,8 +203,7 @@ class MLAnalyzer:
     def _check_rate_anomalies(self, packet_info: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Check for abnormal packet rates"""
         try:
-            # Count packets from same source in recent history
-            recent_packets = list(self.packet_history)[-10:]  # Last 10 packets
+            recent_packets = list(self.packet_history)[-10:]
             src_ip = packet_info['src_ip']
             src_count = sum(1 for p in recent_packets if p['src_ip'] == src_ip)
 
@@ -119,15 +236,6 @@ class MLAnalyzer:
         except Exception as e:
             logger.error(f"Error checking protocols: {e}")
         return []
-
-    def extract_features(self, packet_info: Dict[str, Any]) -> np.ndarray:
-        """Extract basic statistical features for analysis"""
-        return np.array([
-            packet_info['length'],
-            hash(packet_info['src_ip']) % 1000,
-            hash(packet_info['dst_ip']) % 1000,
-            hash(packet_info['protocol']) % 100
-        ], dtype=float)
 
     def get_baseline_stats(self):
         """Return current baseline statistics"""
