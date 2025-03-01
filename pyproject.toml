@@ -18,6 +18,7 @@ dependencies = [
     "scapy-python3>=0.26",
     "scikit-learn>=1.6.1",
     "sqlalchemy>=2.0.38",
+    "toml>=0.10.2",
     "trafilatura>=2.0.0",
     "twilio>=9.4.6",
 ]
