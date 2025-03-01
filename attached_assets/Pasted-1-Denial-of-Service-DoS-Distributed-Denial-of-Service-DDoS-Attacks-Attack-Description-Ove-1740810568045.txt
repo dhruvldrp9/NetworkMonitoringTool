@@ -1,0 +1,141 @@
+1. Denial of Service (DoS) & Distributed Denial of Service (DDoS) Attacks
+🔴 Attack Description:
+Overwhelms the target with excessive traffic, making it unavailable.
+Can be SYN Flood, UDP Flood, ICMP Flood, or HTTP Flood.
+🛡 Detection Rules:
+✅ SYN Flood (TCP-based DoS Attack)
+
+Multiple SYN packets from the same IP without completing the handshake.
+Rule: If SYN count from an IP exceeds a threshold (e.g., 100 SYNs/sec).
+python
+Copy
+Edit
+from collections import defaultdict
+import time
+
+syn_counter = defaultdict(int)
+time_window = 10  # Time window in seconds
+
+def detect_syn_flood(packet):
+    if packet.haslayer(TCP) and packet[TCP].flags == 'S':
+        syn_counter[packet[IP].src] += 1
+        if syn_counter[packet[IP].src] > 100:
+            print(f"🚨 SYN Flood Attack Detected from {packet[IP].src}")
+✅ UDP Flood
+
+A large number of UDP packets sent to random ports.
+Rule: If an IP sends excessive UDP packets (e.g., >1000 packets in 5 sec).
+✅ ICMP Flood (Ping Flood)
+
+Large volume of ICMP Echo requests.
+Rule: If an IP sends excessive ICMP requests (e.g., >100 pings/sec).
+2. Port Scanning
+🔴 Attack Description:
+Attacker scans open ports to find vulnerabilities.
+Common tools: Nmap, Masscan.
+🛡 Detection Rules:
+✅ If an IP sends packets to multiple ports in a short time (e.g., >10 unique ports in 5 sec).
+
+python
+Copy
+Edit
+port_scan_counter = defaultdict(set)
+
+def detect_port_scan(packet):
+    if packet.haslayer(TCP) or packet.haslayer(UDP):
+        port_scan_counter[packet[IP].src].add(packet.dport)
+        if len(port_scan_counter[packet[IP].src]) > 10:
+            print(f"🚨 Port Scan Detected from {packet[IP].src}")
+3. ARP Spoofing / Man-in-the-Middle (MITM) Attack
+🔴 Attack Description:
+An attacker spoofs MAC addresses to intercept traffic.
+🛡 Detection Rules:
+✅ If the same IP is mapped to multiple MAC addresses.
+
+python
+Copy
+Edit
+arp_table = {}
+
+def detect_arp_spoof(packet):
+    if packet.haslayer(ARP):
+        ip = packet[ARP].psrc
+        mac = packet[ARP].hwsrc
+        if ip in arp_table and arp_table[ip] != mac:
+            print(f"🚨 ARP Spoofing Detected! IP {ip} is spoofed!")
+        else:
+            arp_table[ip] = mac
+4. DNS Spoofing
+🔴 Attack Description:
+Fake DNS responses redirect users to malicious sites.
+🛡 Detection Rules:
+✅ If an unexpected DNS response is received from a different IP than expected.
+
+python
+Copy
+Edit
+expected_dns_servers = ["8.8.8.8", "8.8.4.4"]
+
+def detect_dns_spoof(packet):
+    if packet.haslayer(DNS) and packet.haslayer(IP):
+        if packet[IP].src not in expected_dns_servers:
+            print(f"🚨 DNS Spoofing Detected! Fake DNS server: {packet[IP].src}")
+5. MAC Address Spoofing
+🔴 Attack Description:
+Attacker changes MAC address to bypass security restrictions.
+🛡 Detection Rules:
+✅ If a MAC address appears in multiple places with different IPs.
+
+6. Brute Force Attack
+🔴 Attack Description:
+Tries multiple username/password combinations.
+🛡 Detection Rules:
+✅ Multiple failed login attempts from the same IP (e.g., >10 attempts in 30 sec).
+
+7. Credential Stuffing
+🔴 Attack Description:
+Uses leaked username-password pairs to gain access.
+🛡 Detection Rules:
+✅ If a user logs in successfully from multiple locations in a short time.
+
+8. Rogue DHCP Server Attack
+🔴 Attack Description:
+Attacker sets up a fake DHCP server to redirect traffic.
+🛡 Detection Rules:
+✅ Detect unauthorized DHCP offers from untrusted sources.
+
+python
+Copy
+Edit
+trusted_dhcp_servers = ["192.168.1.1"]
+
+def detect_rogue_dhcp(packet):
+    if packet.haslayer(DHCP):
+        if packet[IP].src not in trusted_dhcp_servers:
+            print(f"🚨 Rogue DHCP Server Detected! Source: {packet[IP].src}")
+9. Malware Traffic Detection
+🔴 Attack Description:
+Malicious software communicating with C2 (Command & Control) servers.
+🛡 Detection Rules:
+✅ Unusual outbound connections to rare domains or IPs.
+✅ Large data exfiltration to unknown servers.
+
+10. Data Exfiltration
+🔴 Attack Description:
+Attacker sends sensitive data out of the network.
+🛡 Detection Rules:
+✅ Large outbound traffic to unknown IPs.
+
+11. Ransomware Activity Detection
+🔴 Attack Description:
+Ransomware encrypts files and demands ransom.
+🛡 Detection Rules:
+✅ Large number of file modifications in a short time.
+✅ Sudden increase in encrypted traffic.
+
+12. Unusual Traffic Patterns (Anomaly Detection)
+🔴 Attack Description:
+Abnormal network behavior indicating compromise.
+🛡 Detection Rules:
+✅ If traffic volume spikes suddenly beyond normal levels.
+✅ If new, unknown protocols appear in network packets.

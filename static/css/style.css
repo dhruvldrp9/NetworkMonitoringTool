@@ -44,15 +44,98 @@ header {
 }
 
 .threats-container {
-    max-height: 300px;
+    max-height: 400px;
     overflow-y: auto;
 }
 
 .threat-item {
-    padding: 10px;
-    margin: 5px 0;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 4px;
+    background-color: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    animation: threatAppear 0.3s ease-out;
+}
+
+.threat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.threat-type {
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.threat-severity {
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 0.8em;
+    font-weight: bold;
+}
+
+.threat-details {
+    font-size: 0.9em;
+    line-height: 1.4;
+}
+
+.threat-time {
+    font-size: 0.8em;
+    color: #666;
+    margin-top: 5px;
+}
+
+/* Severity colors */
+.critical {
     border-left: 4px solid #e74c3c;
-    background-color: #fff9f9;
+    background-color: #fef5f5;
+}
+
+.high {
+    border-left: 4px solid #e67e22;
+    background-color: #fef6f0;
+}
+
+.medium {
+    border-left: 4px solid #f1c40f;
+    background-color: #fefdf0;
+}
+
+.low {
+    border-left: 4px solid #3498db;
+    background-color: #f0f7fe;
+}
+
+/* Category styling */
+.threat-item.dos {
+    border-right: 4px solid #9b59b6;
+}
+
+.threat-item.reconnaissance {
+    border-right: 4px solid #2ecc71;
+}
+
+.threat-item.mitm {
+    border-right: 4px solid #e67e22;
+}
+
+.threat-item.spoofing {
+    border-right: 4px solid #3498db;
+}
+
+.threat-item.data_theft {
+    border-right: 4px solid #c0392b;
+}
+
+.threat-item.exploit {
+    border-right: 4px solid #d35400;
+}
+
+.threat-item.anomaly {
+    border-right: 4px solid #16a085;
 }
 
 .log-container {
@@ -77,4 +160,41 @@ header {
 
 #status.inactive {
     color: #c0392b;
+}
+
+.threat-counter {
+    background-color: #fff;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.threat-breakdown {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.severity-count {
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 0.8em;
+}
+
+/* Animation for new threats */
+@keyframes threatAppear {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.threat-item {
+    animation: threatAppear 0.3s ease-out;
 }

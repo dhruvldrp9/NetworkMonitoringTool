@@ -47,7 +47,7 @@ function updateProtocolChart(protocols) {
         labels: Object.keys(protocols),
         type: 'pie'
     }];
-    
+
     const layout = {
         height: 300,
         margin: { t: 0, b: 0, l: 0, r: 0 }
@@ -62,7 +62,7 @@ function updatePacketRateChart(rates) {
         type: 'line',
         name: 'Packets/s'
     }];
-    
+
     const layout = {
         height: 300,
         margin: { t: 0, b: 30, l: 30, r: 10 },
@@ -82,11 +82,18 @@ function updateTopIPs(ips) {
 function addThreat(threat) {
     const container = document.getElementById('threats-list');
     const threatElement = document.createElement('div');
-    threatElement.className = 'threat-item';
+    threatElement.className = `threat-item ${threat.severity} ${threat.category}`;
     threatElement.innerHTML = `
-        <strong>${threat.type}</strong><br>
-        Source: ${threat.source}<br>
-        Details: ${threat.details}
+        <div class="threat-header">
+            <span class="threat-type">${threat.type}</span>
+            <span class="threat-severity ${threat.severity}">${threat.severity}</span>
+        </div>
+        <div class="threat-details">
+            <div>Source: ${threat.source}</div>
+            <div>Category: ${threat.category}</div>
+            <div>Details: ${threat.details}</div>
+            <div class="threat-time">${new Date().toLocaleTimeString()}</div>
+        </div>
     `;
     container.insertBefore(threatElement, container.firstChild);
 
@@ -94,6 +101,37 @@ function addThreat(threat) {
     if (container.children.length > 100) {
         container.removeChild(container.lastChild);
     }
+
+    // Update threat counter
+    updateThreatCounter(threat.category, threat.severity);
+}
+
+function updateThreatCounter(category, severity) {
+    const counterElement = document.getElementById('threat-counter');
+    if (!counterElement.dataset.threats) {
+        counterElement.dataset.threats = JSON.stringify({
+            total: 0,
+            categories: {},
+            severities: {}
+        });
+    }
+
+    const counts = JSON.parse(counterElement.dataset.threats);
+    counts.total++;
+    counts.categories[category] = (counts.categories[category] || 0) + 1;
+    counts.severities[severity] = (counts.severities[severity] || 0) + 1;
+
+    counterElement.dataset.threats = JSON.stringify(counts);
+
+    // Update the display
+    counterElement.innerHTML = `
+        <div>Total Threats: ${counts.total}</div>
+        <div class="threat-breakdown">
+            ${Object.entries(counts.severities).map(([sev, count]) => 
+                `<div class="severity-count ${sev}">${sev}: ${count}</div>`
+            ).join('')}
+        </div>
+    `;
 }
 
 function addActivityLog(message) {
