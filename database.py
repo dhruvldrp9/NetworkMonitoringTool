@@ -104,7 +104,7 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error logging threat: {e}")
 
-    def log_anomaly(self, anomaly_info, features, baseline_stats):
+    def log_anomaly(self, anomaly_info, features=None, baseline_stats=None):
         """Log ML-detected anomaly to database"""
         try:
             with self.SessionLocal() as session:
@@ -113,8 +113,8 @@ class DatabaseManager:
                     source=anomaly_info['source'],
                     details=anomaly_info['details'],
                     confidence=anomaly_info['confidence'],
-                    features=features,
-                    baseline_stats=baseline_stats
+                    features=features if features is not None else {},
+                    baseline_stats=baseline_stats if baseline_stats is not None else {}
                 )
                 session.add(anomaly_log)
                 session.commit()

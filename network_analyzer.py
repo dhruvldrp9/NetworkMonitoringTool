@@ -104,7 +104,15 @@ class NetworkAnalyzer:
                 if anomalies:
                     for anomaly in anomalies:
                         logger.warning(f"Anomaly detected: {anomaly}")
-                        self.db_manager.log_anomaly(anomaly)
+                        # Get features and baseline stats for logging
+                        features = self.ml_analyzer.extract_features(packet_info)
+                        baseline_stats = self.ml_analyzer.get_baseline_stats()
+                        # Log anomaly with features and stats
+                        self.db_manager.log_anomaly(
+                            anomaly,
+                            features=features.tolist(),  # Convert numpy array to list
+                            baseline_stats=baseline_stats
+                        )
                         if anomaly.get('confidence', 0) > 0.8:
                             self.notifier.send_alert(anomaly, channels=['webhook'])
                         # Mark packet as attack for pattern tracking
