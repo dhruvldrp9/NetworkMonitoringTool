@@ -46,8 +46,6 @@ function updateTrafficStats(stats) {
     document.getElementById('packets-per-second').textContent = 
         stats.general.packets_per_second.toFixed(2);
     document.getElementById('total-bytes').textContent = formatBytes(stats.general.total_bytes);
-
-    // Update additional metrics
     document.getElementById('unique-ips').textContent = stats.general.unique_ips || 0;
     document.getElementById('avg-packet-size').textContent = 
         formatBytes(stats.general.avg_packet_size || 0);
@@ -102,7 +100,6 @@ function updateConnectionHeatmap(connections) {
     }];
 
     const layout = {
-        height: 400,
         margin: { t: 30, b: 40, l: 100, r: 20 },
         title: 'Connection Heatmap',
         xaxis: { title: 'Destination IPs', color: '#ffffff' },
@@ -118,6 +115,10 @@ function updateConnectionHeatmap(connections) {
         responsive: true,
         displayModeBar: false
     };
+
+    // Get container height
+    const container = document.getElementById('connection-heatmap');
+    layout.height = container.clientHeight;
 
     Plotly.newPlot('connection-heatmap', data, layout, config);
 }
@@ -135,7 +136,6 @@ function updateAttackPatterns(attacks) {
     }];
 
     const layout = {
-        height: 300,
         margin: { t: 30, b: 40, l: 50, r: 20 },
         title: 'Attack Pattern Timeline',
         xaxis: { title: 'Time', color: '#ffffff' },
@@ -152,6 +152,10 @@ function updateAttackPatterns(attacks) {
         displayModeBar: false
     };
 
+    // Get container height
+    const container = document.getElementById('attack-pattern-chart');
+    layout.height = container.clientHeight;
+
     Plotly.newPlot('attack-pattern-chart', data, layout, config);
 }
 
@@ -164,7 +168,6 @@ function updatePacketRateChart(rates) {
     }];
 
     const layout = {
-        height: 300,
         margin: { t: 0, b: 30, l: 30, r: 10 },
         yaxis: { title: 'Packets/s', color: '#ffffff' },
         xaxis: { title: 'Time (last 60 seconds)', color: '#ffffff' },
@@ -180,17 +183,22 @@ function updatePacketRateChart(rates) {
         displayModeBar: false
     };
 
+    // Get container height
+    const container = document.getElementById('packet-rate-chart');
+    layout.height = container.clientHeight;
+
     Plotly.newPlot('packet-rate-chart', data, layout, config);
 }
 
 function updateTopIPs(ips) {
     const container = document.getElementById('top-ips');
+    const maxCount = Math.max(...Object.values(ips));
     container.innerHTML = Object.entries(ips)
         .map(([ip, count]) => `
             <div class="ip-entry">
                 <span class="ip-address">${ip}</span>
                 <span class="packet-count">${count} packets</span>
-                <div class="progress-bar" style="width: ${(count / Math.max(...Object.values(ips)) * 100)}%"></div>
+                <div class="progress-bar" style="width: ${(count / maxCount * 100)}%"></div>
             </div>
         `)
         .join('');
@@ -309,11 +317,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize threat filters
     initializeFilters();
+
+    // Handle window resize for charts
+    window.addEventListener('resize', () => {
+        updateConnectionHeatmap(connectionHeatmap?.data);
+        updateAttackPatterns(attackPatternChart?.data);
+        updatePacketRateChart(packetRateChart?.data);
+        updateProtocolChart(protocolChart?.data);
+    });
 });
 
 function updateRealTimeMetrics(packet) {
-    // Update real-time metrics based on individual packets
-    //  This involves updating counters or other elements on the dashboard
+    // Update performance metrics
+    const lossElement = document.getElementById('packet-loss');
+    const latencyElement = document.getElementById('network-latency');
+    const bandwidthElement = document.getElementById('bandwidth-usage');
+
+    if (lossElement && packet.performance) {
+        lossElement.textContent = `${packet.performance.loss.toFixed(2)}%`;
+        latencyElement.textContent = `${packet.performance.latency.toFixed(2)}ms`;
+        bandwidthElement.textContent = `${packet.performance.bandwidth.toFixed(2)} Mbps`;
+    }
 }
 
 async function generatePDFReport() {

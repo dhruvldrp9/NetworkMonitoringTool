@@ -104,6 +104,8 @@ header {
     height: 100%;
     display: flex;
     flex-direction: column;
+    min-height: 300px;
+    max-height: 500px;
 }
 
 .card:hover {
@@ -125,6 +127,7 @@ header {
     scrollbar-width: thin;
     scrollbar-color: var(--accent-color) var(--secondary-bg);
     padding-right: 10px;
+    max-height: calc(100% - 60px);
 }
 
 .threat-item {
@@ -254,9 +257,57 @@ header {
 }
 
 .chart-container {
-    width: 100%;
-    height: 300px;
     position: relative;
+    width: 100%;
+    height: calc(100% - 60px);
+    min-height: 250px;
+    overflow: hidden;
+}
+
+.log-container {
+    height: calc(100% - 60px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-color) var(--secondary-bg);
+    padding-right: 10px;
+}
+
+.log-entry {
+    padding: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 0.9em;
+}
+
+.log-time {
+    color: var(--text-secondary);
+    margin-right: 10px;
+}
+
+.performance-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 20px;
+    padding: 15px;
+}
+
+.metric {
+    background-color: rgba(255, 255, 255, 0.05);
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.metric label {
+    display: block;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    font-size: 0.9em;
+}
+
+.metric span {
+    font-size: 1.2em;
+    font-weight: 600;
+    color: var(--text-primary);
 }
 
 .loading-spinner {
@@ -320,5 +371,10 @@ header {
     .grid-container {
         grid-template-columns: 1fr;
         height: calc(100vh - 80px);
+    }
+
+    .filter-controls {
+        flex-direction: column;
+        margin-right: 10px;
     }
 }
