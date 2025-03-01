@@ -1,0 +1,331 @@
+#!/usr/bin/env python3
+"""
+Real-Time Network Traffic Analyzer using Python and Scapy
+This script captures network packets in real-time, analyzes them for security threats,
+and provides alerts and visualizations.
+"""
+
+import time
+import logging
+import argparse
+import sys
+import threading
+import queue
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime
+from scapy.all import sniff, IP, TCP, UDP, ICMP, ARP, Raw
+from collections import Counter, defaultdict
+
+# Configure logging
+logging.basicConfig(
+    filename='network_analyzer.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
+class NetworkTrafficAnalyzer:
+    def __init__(self, interface=None, packet_count=None, timeout=None, 
+                 output_file="packet_data.csv", threshold=100):
+        self.interface = interface
+        self.packet_count = packet_count
+        self.timeout = timeout
+        self.output_file = output_file
+        self.threshold = threshold  # Threshold for alerts
+        
+        # Data structures for analysis
+        self.packet_queue = queue.Queue()
+        self.packet_data = []
+        self.ip_counter = Counter()
+        self.port_counter = Counter()
+        self.protocol_counter = Counter()
+        self.connection_tracker = defaultdict(int)
+        self.syn_flood_tracker = defaultdict(int)
+        self.last_analysis_time = time.time()
+        
+        # Start analysis thread
+        self.stop_analysis = False
+        self.analysis_thread = threading.Thread(target=self._analyze_packets)
+        self.analysis_thread.daemon = True
+        self.analysis_thread.start()
+        
+    def start_capture(self):
+        """Start capturing packets"""
+        print(f"[+] Starting packet capture on {self.interface or 'all interfaces'}")
+        try:
+            sniff(
+                iface=self.interface,
+                prn=self._process_packet,
+                count=self.packet_count,
+                timeout=self.timeout,
+                store=0
+            )
+        except KeyboardInterrupt:
+            print("\n[!] Packet capture stopped by user")
+        except Exception as e:
+            print(f"\n[!] Error during packet capture: {e}")
+        finally:
+            self.stop_analysis = True
+            self.analysis_thread.join(timeout=2)
+            self._save_packet_data()
+            
+    def _process_packet(self, packet):
+        """Process each captured packet"""
+        # Add packet to queue for analysis
+        self.packet_queue.put(packet)
+        
+        # Perform immediate analysis
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        packet_info = {
+            'timestamp': timestamp,
+            'src_mac': None,
+            'dst_mac': None,
+            'src_ip': None,
+            'dst_ip': None,
+            'src_port': None,
+            'dst_port': None,
+            'protocol': None,
+            'length': len(packet),
+            'ttl': None,
+            'flags': None
+        }
+        
+        # Extract Ethernet information if available
+        if packet.haslayer('Ether'):
+            packet_info['src_mac'] = packet.src
+            packet_info['dst_mac'] = packet.dst
+        
+        # Extract IP information if available
+        if packet.haslayer(IP):
+            ip = packet[IP]
+            packet_info['src_ip'] = ip.src
+            packet_info['dst_ip'] = ip.dst
+            packet_info['ttl'] = ip.ttl
+            self.ip_counter.update([ip.src, ip.dst])
+            
+            # TCP Analysis
+            if packet.haslayer(TCP):
+                tcp = packet[TCP]
+                packet_info['src_port'] = tcp.sport
+                packet_info['dst_port'] = tcp.dport
+                packet_info['protocol'] = 'TCP'
+                packet_info['flags'] = tcp.flags
+                self.port_counter.update([tcp.sport, tcp.dport])
+                self.protocol_counter.update(['TCP'])
+                
+                # Track connections for potential SYN flood detection
+                if tcp.flags & 0x02:  # SYN flag is set
+                    key = f"{ip.src}:{tcp.sport}->{ip.dst}:{tcp.dport}"
+                    self.syn_flood_tracker[key] += 1
+                    
+                    # Check for SYN flood
+                    if self.syn_flood_tracker[key] > self.threshold:
+                        alert_msg = f"[!] Possible SYN flood detected from {ip.src} to {ip.dst}:{tcp.dport}"
+                        print(alert_msg)
+                        logging.warning(alert_msg)
+            
+            # UDP Analysis
+            elif packet.haslayer(UDP):
+                udp = packet[UDP]
+                packet_info['src_port'] = udp.sport
+                packet_info['dst_port'] = udp.dport
+                packet_info['protocol'] = 'UDP'
+                self.port_counter.update([udp.sport, udp.dport])
+                self.protocol_counter.update(['UDP'])
+            
+            # ICMP Analysis
+            elif packet.haslayer(ICMP):
+                packet_info['protocol'] = 'ICMP'
+                self.protocol_counter.update(['ICMP'])
+        
+        # ARP Analysis (could indicate ARP spoofing)
+        elif packet.haslayer(ARP):
+            arp = packet[ARP]
+            packet_info['src_ip'] = arp.psrc
+            packet_info['dst_ip'] = arp.pdst
+            packet_info['protocol'] = 'ARP'
+            self.protocol_counter.update(['ARP'])
+            
+            # Check for ARP spoofing indicators
+            # Advanced ARP spoofing detection would be implemented here
+        
+        # Add packet data for batch processing
+        self.packet_data.append(packet_info)
+        
+        # Perform periodic analysis
+        current_time = time.time()
+        if current_time - self.last_analysis_time > 5:  # Every 5 seconds
+            self._periodic_analysis()
+            self.last_analysis_time = current_time
+            
+    def _analyze_packets(self):
+        """Background thread for deeper packet analysis"""
+        while not self.stop_analysis:
+            try:
+                # Get packet from queue with a timeout to avoid blocking forever
+                packet = self.packet_queue.get(timeout=1)
+                
+                # Check for payload patterns (simple example)
+                if packet.haslayer(Raw):
+                    payload = packet[Raw].load
+                    self._analyze_payload(packet, payload)
+                    
+                self.packet_queue.task_done()
+            except queue.Empty:
+                continue
+            except Exception as e:
+                logging.error(f"Error in analysis thread: {e}")
+                continue
+                
+    def _analyze_payload(self, packet, payload):
+        """Analyze packet payload for suspicious patterns"""
+        try:
+            # Example: Check for common attack signatures
+            suspicious_patterns = [
+                b"DROP TABLE",          # SQL injection attempt
+                b"<script>",            # XSS attempt
+                b"eval\\(",             # Code injection
+                b"/etc/passwd",         # Path traversal
+                b"cmd.exe",             # Command execution
+                b"powershell.exe",      # PowerShell execution
+            ]
+            
+            # Convert payload to lowercase for case-insensitive matching
+            payload_lower = payload.lower()
+            
+            for pattern in suspicious_patterns:
+                if pattern.lower() in payload_lower:
+                    if packet.haslayer(IP):
+                        src_ip = packet[IP].src
+                        dst_ip = packet[IP].dst
+                        alert_msg = f"[!] Suspicious pattern detected: {pattern} from {src_ip} to {dst_ip}"
+                        print(alert_msg)
+                        logging.warning(alert_msg)
+                        
+        except Exception as e:
+            logging.error(f"Error analyzing payload: {e}")
+            
+    def _periodic_analysis(self):
+        """Perform periodic analysis of collected data"""
+        # Look for port scanning (multiple ports accessed from the same IP)
+        ip_to_ports = defaultdict(set)
+        
+        for data in self.packet_data[-1000:]:  # Analyze last 1000 packets
+            if data['src_ip'] and data['dst_port']:
+                ip_to_ports[data['src_ip']].add(data['dst_port'])
+        
+        for ip, ports in ip_to_ports.items():
+            if len(ports) > 20:  # Threshold for port scanning alert
+                alert_msg = f"[!] Possible port scanning detected from {ip} ({len(ports)} ports)"
+                print(alert_msg)
+                logging.warning(alert_msg)
+                
+        # Generate stats for display
+        self._display_stats()
+        
+    def _display_stats(self):
+        """Display network statistics"""
+        print("\n===== Network Traffic Statistics =====")
+        print(f"Total packets captured: {len(self.packet_data)}")
+        
+        # Protocol distribution
+        print("\nProtocol Distribution:")
+        for protocol, count in self.protocol_counter.most_common(5):
+            print(f"  {protocol}: {count} packets")
+            
+        # Top source IPs
+        print("\nTop Source IPs:")
+        for ip, count in self.ip_counter.most_common(5):
+            print(f"  {ip}: {count} packets")
+            
+        # Top destination ports
+        print("\nTop Destination Ports:")
+        for port, count in self.port_counter.most_common(5):
+            print(f"  {port}: {count} packets")
+            
+        print("==================================\n")
+        
+    def _save_packet_data(self):
+        """Save captured packet data to CSV file"""
+        if self.packet_data:
+            df = pd.DataFrame(self.packet_data)
+            df.to_csv(self.output_file, index=False)
+            print(f"[+] Packet data saved to {self.output_file}")
+            
+    def generate_visualizations(self):
+        """Generate visualizations from captured data"""
+        if not self.packet_data:
+            print("[!] No packet data available for visualization")
+            return
+            
+        df = pd.DataFrame(self.packet_data)
+        
+        # Set up the figure
+        plt.figure(figsize=(18, 12))
+        
+        # 1. Protocol Distribution Pie Chart
+        plt.subplot(221)
+        protocol_counts = df['protocol'].value_counts()
+        plt.pie(protocol_counts, labels=protocol_counts.index, autopct='%1.1f%%')
+        plt.title('Protocol Distribution')
+        
+        # 2. Packet Count Over Time
+        plt.subplot(222)
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        time_series = df.groupby(pd.Grouper(key='timestamp', freq='1min')).size()
+        plt.plot(time_series.index, time_series.values)
+        plt.title('Packet Count Over Time')
+        plt.xticks(rotation=45)
+        
+        # 3. Top Source IPs Bar Chart
+        plt.subplot(223)
+        top_ips = df['src_ip'].value_counts().head(10)
+        sns.barplot(x=top_ips.values, y=top_ips.index)
+        plt.title('Top 10 Source IPs')
+        plt.xlabel('Packet Count')
+        
+        # 4. Top Destination Ports Bar Chart
+        plt.subplot(224)
+        top_ports = df['dst_port'].value_counts().head(10)
+        sns.barplot(x=top_ports.values, y=top_ports.index)
+        plt.title('Top 10 Destination Ports')
+        plt.xlabel('Packet Count')
+        
+        plt.tight_layout()
+        plt.savefig('network_traffic_analysis.png')
+        print("[+] Visualizations saved to network_traffic_analysis.png")
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Real-Time Network Traffic Analyzer')
+    parser.add_argument('-i', '--interface', help='Network interface to capture packets')
+    parser.add_argument('-c', '--count', type=int, help='Number of packets to capture')
+    parser.add_argument('-t', '--timeout', type=int, help='Timeout for packet capture (seconds)')
+    parser.add_argument('-o', '--output', default='packet_data.csv', help='Output file for packet data')
+    parser.add_argument('--threshold', type=int, default=100, help='Threshold for alert triggers')
+    args = parser.parse_args()
+    
+    try:
+        analyzer = NetworkTrafficAnalyzer(
+            interface=args.interface,
+            packet_count=args.count,
+            timeout=args.timeout,
+            output_file=args.output,
+            threshold=args.threshold
+        )
+        print("[*] Starting Real-Time Network Traffic Analyzer...")
+        print("[*] Press Ctrl+C to stop the capture")
+        analyzer.start_capture()
+        analyzer.generate_visualizations()
+        
+    except KeyboardInterrupt:
+        print("\n[!] Program terminated by user")
+    except Exception as e:
+        print(f"[!] Error: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

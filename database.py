@@ -1,3 +1,4 @@
+import json
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, JSON, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
@@ -64,12 +65,23 @@ class DatabaseManager:
     def _create_tables(self):
         """Create database tables"""
         try:
-            # Use checkfirst=True to prevent errors if tables already exist
             Base.metadata.create_all(bind=engine, checkfirst=True)
             logger.info("Database tables created successfully")
         except Exception as e:
             logger.error(f"Error creating database tables: {e}")
             raise
+
+    def make_json_serializable(self, data):
+        """Recursively convert non-serializable types into serializable ones"""
+        if isinstance(data, (set, frozenset)):
+            return list(data)
+        elif isinstance(data, dict):
+            return {key: self.make_json_serializable(value) for key, value in data.items()}
+        elif isinstance(data, list):
+            return [self.make_json_serializable(item) for item in data]
+        elif hasattr(data, 'tolist'):  # Handle numpy arrays
+            return data.tolist()
+        return data
 
     def log_packet(self, packet_info):
         """Log packet information to database"""
@@ -80,7 +92,7 @@ class DatabaseManager:
                     dst_ip=packet_info['dst_ip'],
                     protocol=packet_info['protocol'],
                     length=packet_info['length'],
-                    details=packet_info['details']
+                    details=self.make_json_serializable(packet_info['details'])
                 )
                 session.add(packet_log)
                 session.commit()
@@ -107,19 +119,23 @@ class DatabaseManager:
     def log_anomaly(self, anomaly_info, features=None, baseline_stats=None):
         """Log ML-detected anomaly to database"""
         try:
+            # Convert features and baseline_stats to JSON serializable format
+            features_json = self.make_json_serializable(features) if features is not None else {}
+            baseline_stats_json = self.make_json_serializable(baseline_stats) if baseline_stats is not None else {}
+
             with self.SessionLocal() as session:
                 anomaly_log = AnomalyLog(
                     type=anomaly_info['type'],
                     source=anomaly_info['source'],
                     details=anomaly_info['details'],
                     confidence=anomaly_info['confidence'],
-                    features=features if features is not None else {},
-                    baseline_stats=baseline_stats if baseline_stats is not None else {}
+                    features=features_json,
+                    baseline_stats=baseline_stats_json
                 )
                 session.add(anomaly_log)
                 session.commit()
         except Exception as e:
-            logger.error(f"Error logging anomaly: {e}")
+            logger.error(f"Error logging anomaly: {e}", exc_info=True)
 
     def get_recent_threats(self, limit=100):
         """Get recent threat detections"""

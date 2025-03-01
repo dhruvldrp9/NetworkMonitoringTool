@@ -1,0 +1,367 @@
+#!/usr/bin/env python3
+"""
+Deep Packet Inspection Module for Network Traffic Analyzer
+This module provides advanced packet inspection capabilities to detect security threats.
+"""
+
+import re
+import json
+from scapy.all import IP, TCP, UDP, ICMP, Raw
+import logging
+
+# Configure module logging
+logger = logging.getLogger('dpi')
+logger.setLevel(logging.INFO)
+handler = logging.FileHandler('dpi.log')
+handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+logger.addHandler(handler)
+
+class DeepPacketInspector:
+    def __init__(self, rules_file=None):
+        """
+        Initialize the Deep Packet Inspector with detection rules
+        
+        Args:
+            rules_file (str): Path to JSON file containing detection rules
+        """
+        self.rules = self._load_rules(rules_file)
+        self.connection_tracker = {}
+        self.anomaly_thresholds = {
+            'port_scan': 15,       # Number of different ports in short time
+            'syn_flood': 50,       # Number of SYN packets to same destination
+            'icmp_flood': 20,      # Number of ICMP packets in short time
+            'payload_size': 10000  # Suspiciously large payload size
+        }
+        logger.info("Deep Packet Inspector initialized")
+        
+    def _load_rules(self, rules_file):
+        """Load detection rules from file or use defaults"""
+        default_rules = {
+            'patterns': {
+                'sql_injection': [
+                    r'SELECT.+FROM.+WHERE', 
+                    r'DROP\s+TABLE',
+                    r'UNION\s+SELECT',
+                    r'--\s',
+                    r'OR\s+1=1',
+                    r';\s*--'
+                ],
+                'xss': [
+                    r'<script>',
+                    r'javascript:',
+                    r'onerror=',
+                    r'eval\(',
+                    r'document\.cookie'
+                ],
+                'command_injection': [
+                    r'`.*`',
+                    r'\b(bash|sh|ksh|csh)\s+-c\s+',
+                    r'\bsystem\(',
+                    r'\bexec\(',
+                    r'\|.*(bash|sh)',
+                    r';.*(bash|sh)'
+                ],
+                'path_traversal': [
+                    r'\.\./',
+                    r'\.\.\\',
+                    r'/etc/passwd',
+                    r'C:\\Windows\\System32',
+                    r'WEB-INF/'
+                ],
+                'malware_indicators': [
+                    r'bot\.exe',
+                    r'cmd\.exe\s+/c',
+                    r'powershell\.exe\s+-encodedcommand',
+                    r'wget\s+http',
+                    r'curl\s+-o'
+                ]
+            },
+            'port_mappings': {
+                '22': 'SSH',
+                '23': 'Telnet',
+                '25': 'SMTP',
+                '53': 'DNS',
+                '80': 'HTTP',
+                '443': 'HTTPS',
+                '3306': 'MySQL',
+                '3389': 'RDP',
+                '8080': 'HTTP Alt'
+            },
+            'suspicious_ports': [
+                '31337',  # Back Orifice
+                '5554',   # Sasser worm
+                '9996',   # Common botnet port
+                '4444',   # Metasploit default
+                '6667'    # IRC (often used by botnets)
+            ]
+        }
+        
+        if rules_file:
+            try:
+                with open(rules_file, 'r') as f:
+                    custom_rules = json.load(f)
+                    # Merge custom rules with defaults
+                    for category, rules in custom_rules.items():
+                        if category in default_rules:
+                            if isinstance(default_rules[category], dict):
+                                for rule_type, patterns in rules.items():
+                                    if rule_type in default_rules[category]:
+                                        default_rules[category][rule_type].extend(patterns)
+                                    else:
+                                        default_rules[category][rule_type] = patterns
+                            else:
+                                default_rules[category].extend(rules)
+                        else:
+                            default_rules[category] = rules
+                logger.info(f"Loaded custom rules from {rules_file}")
+            except Exception as e:
+                logger.error(f"Failed to load rules from {rules_file}: {e}")
+                
+        # Compile regex patterns for faster matching
+        for category, patterns in default_rules['patterns'].items():
+            default_rules['patterns'][category] = [re.compile(pattern, re.IGNORECASE) for pattern in patterns]
+            
+        return default_rules
+        
+    def inspect_packet(self, packet):
+        """
+        Deeply inspect a packet for security threats
+        
+        Args:
+            packet: Scapy packet object to inspect
+            
+        Returns:
+            dict: Dictionary containing inspection results and detected threats
+        """
+        result = {
+            'threats': [],
+            'anomalies': [],
+            'info': {}
+        }
+        
+        # Skip if packet doesn't have IP layer
+        if not packet.haslayer(IP):
+            return result
+            
+        # Basic packet info
+        ip_src = packet[IP].src
+        ip_dst = packet[IP].dst
+        
+        # Track connections and check for anomalies
+        self._track_connection(packet, result)
+        
+        # TCP inspection
+        if packet.haslayer(TCP):
+            tcp = packet[TCP]
+            sport = tcp.sport
+            dport = tcp.dport
+            flags = tcp.flags
+            
+            # Check for suspicious ports
+            if str(dport) in self.rules['suspicious_ports']:
+                result['anomalies'].append(f"Connection to suspicious port {dport}")
+                
+            # Check TCP flags for potential scan patterns
+            if flags == 2:  # SYN
+                self._check_syn_flood(ip_src, ip_dst, dport, result)
+            elif flags == 1:  # FIN
+                pass  # Could track FIN scans
+            elif flags == 0:  # NULL
+                result['anomalies'].append(f"NULL scan detected from {ip_src}")
+            elif flags == 41:  # XMAS (FIN, PSH, URG)
+                result['anomalies'].append(f"XMAS scan detected from {ip_src}")
+                
+            # Check payload for known attack patterns
+            if packet.haslayer(Raw):
+                self._inspect_payload(packet[Raw].load, ip_src, ip_dst, sport, dport, result)
+                
+        # UDP inspection
+        elif packet.haslayer(UDP):
+            udp = packet[UDP]
+            sport = udp.sport
+            dport = udp.dport
+            
+            # Check for suspicious ports
+            if str(dport) in self.rules['suspicious_ports']:
+                result['anomalies'].append(f"Connection to suspicious UDP port {dport}")
+                
+            # Check payload
+            if packet.haslayer(Raw):
+                self._inspect_payload(packet[Raw].load, ip_src, ip_dst, sport, dport, result)
+                
+        # ICMP inspection (potential DoS)
+        elif packet.haslayer(ICMP):
+            self._check_icmp_flood(ip_src, result)
+            
+        return result
+        
+    def _track_connection(self, packet, result):
+        """Track connections to detect anomalies like port scanning"""
+        if not packet.haslayer(IP):
+            return
+            
+        ip_src = packet[IP].src
+        
+        # Initialize tracker for this source if not exists
+        if ip_src not in self.connection_tracker:
+            self.connection_tracker[ip_src] = {
+                'ports': set(),
+                'last_seen': 0,
+                'syn_count': 0,
+                'icmp_count': 0,
+                'last_reset': 0
+            }
+            
+        tracker = self.connection_tracker[ip_src]
+        current_time = int(time.time())
+        
+        # Reset counters after 60 seconds of inactivity
+        if current_time - tracker['last_reset'] > 60:
+            tracker['ports'] = set()
+            tracker['syn_count'] = 0
+            tracker['icmp_count'] = 0
+            tracker['last_reset'] = current_time
+            
+        # Track destination ports for port scan detection
+        if packet.haslayer(TCP) or packet.haslayer(UDP):
+            port = packet[TCP].dport if packet.haslayer(TCP) else packet[UDP].dport
+            tracker['ports'].add(port)
+            
+            # Check for port scanning (many different ports in short time)
+            if len(tracker['ports']) > self.anomaly_thresholds['port_scan']:
+                result['threats'].append({
+                    'type': 'port_scan',
+                    'source': ip_src,
+                    'details': f"Accessed {len(tracker['ports'])} different ports"
+                })
+                # Reset after detection to avoid flooding alerts
+                tracker['ports'] = set()
+                
+        tracker['last_seen'] = current_time
+        
+    def _check_syn_flood(self, ip_src, ip_dst, dport, result):
+        """Check for SYN flood attacks"""
+        if ip_src not in self.connection_tracker:
+            return
+            
+        tracker = self.connection_tracker[ip_src]
+        tracker['syn_count'] += 1
+        
+        if tracker['syn_count'] > self.anomaly_thresholds['syn_flood']:
+            result['threats'].append({
+                'type': 'syn_flood',
+                'source': ip_src,
+                'target': f"{ip_dst}:{dport}",
+                'details': f"SYN flood ({tracker['syn_count']} SYN packets)"
+            })
+            # Reset counter to avoid alert spam
+            tracker['syn_count'] = 0
+            
+    def _check_icmp_flood(self, ip_src, result):
+        """Check for ICMP flood attacks"""
+        if ip_src not in self.connection_tracker:
+            return
+            
+        tracker = self.connection_tracker[ip_src]
+        tracker['icmp_count'] += 1
+        
+        if tracker['icmp_count'] > self.anomaly_thresholds['icmp_flood']:
+            result['threats'].append({
+                'type': 'icmp_flood',
+                'source': ip_src,
+                'details': f"ICMP flood ({tracker['icmp_count']} ICMP packets)"
+            })
+            # Reset counter to avoid alert spam
+            tracker['icmp_count'] = 0
+            
+    def _inspect_payload(self, payload, ip_src, ip_dst, sport, dport, result):
+        """Inspect packet payload for attack signatures"""
+        try:
+            # Convert bytes to string for pattern matching
+            # Try utf-8 first, fallback to latin-1 for binary data
+            try:
+                payload_str = payload.decode('utf-8')
+            except UnicodeDecodeError:
+                payload_str = payload.decode('latin-1')
+                
+            # Check payload size for anomalies
+            if len(payload) > self.anomaly_thresholds['payload_size']:
+                result['anomalies'].append(f"Unusually large payload: {len(payload)} bytes")
+                
+            # Check for attack patterns in payload
+            for attack_type, patterns in self.rules['patterns'].items():
+                for pattern in patterns:
+                    if pattern.search(payload_str):
+                        result['threats'].append({
+                            'type': attack_type,
+                            'source': f"{ip_src}:{sport}",
+                            'target': f"{ip_dst}:{dport}",
+                            'pattern': pattern.pattern,
+                            'details': f"Matched pattern in payload"
+                        })
+                        # Log the detection
+                        logger.warning(f"Detected {attack_type} from {ip_src}:{sport} to {ip_dst}:{dport}")
+                        break  # Only report first match per category
+                        
+        except Exception as e:
+            logger.error(f"Error inspecting payload: {e}")
+            
+    def get_port_service(self, port):
+        """Get service name for a port number"""
+        port_str = str(port)
+        return self.rules['port_mappings'].get(port_str, "Unknown")
+
+
+# Function to integrate with main analyzer
+def integrate_with_analyzer(analyzer_instance, rules_file=None):
+    """
+    Integrate DPI with the NetworkTrafficAnalyzer
+    
+    Args:
+        analyzer_instance: NetworkTrafficAnalyzer instance
+        rules_file: Optional path to custom rules file
+    """
+    import time
+    from scapy.all import IP
+    
+    # Create DPI instance
+    dpi = DeepPacketInspector(rules_file)
+    
+    # Store original packet processing function
+    original_process = analyzer_instance._process_packet
+    
+    # Define enhanced packet processing with DPI
+    def enhanced_process_packet(packet):
+        # Call original processing first
+        original_process(packet)
+        
+        # Then perform deep inspection
+        if packet.haslayer(IP):
+            inspection_result = dpi.inspect_packet(packet)
+            
+            # Handle threats and anomalies
+            for threat in inspection_result['threats']:
+                alert_msg = f"[THREAT] {threat['type']} detected from {threat['source']}"
+                if 'target' in threat:
+                    alert_msg += f" to {threat['target']}"
+                if 'details' in threat:
+                    alert_msg += f": {threat['details']}"
+                    
+                print(alert_msg)
+                logging.warning(alert_msg)
+                
+            for anomaly in inspection_result['anomalies']:
+                logging.info(f"[ANOMALY] {anomaly}")
+    
+    # Replace packet processing with enhanced version
+    analyzer_instance._process_packet = enhanced_process_packet
+    
+    return dpi
+
+# If run directly, perform tests
+if __name__ == "__main__":
+    dpi = DeepPacketInspector()
+    print("Deep Packet Inspector initialized")
+    print(f"Loaded {sum(len(patterns) for patterns in dpi.rules['patterns'].values())} attack patterns")
+    print(f"Loaded {len(dpi.rules['suspicious_ports'])} suspicious ports")
+    print(f"Loaded {len(dpi.rules['port_mappings'])} port mappings")
