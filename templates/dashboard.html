@@ -18,6 +18,29 @@
                 <div class="status">Status: <span id="status" class="active">Connected</span></div>
             </div>
             <div class="header-actions">
+                <div class="filter-controls">
+                    <select id="severity-filter" class="filter-control">
+                        <option value="">All Severities</option>
+                        <option value="critical">Critical</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                    <select id="category-filter" class="filter-control">
+                        <option value="">All Categories</option>
+                        <option value="dos">DoS</option>
+                        <option value="injection">Injection</option>
+                        <option value="reconnaissance">Recon</option>
+                        <option value="malware">Malware</option>
+                    </select>
+                    <input type="text" id="source-filter" class="filter-control" placeholder="Source IP">
+                    <select id="time-filter" class="filter-control">
+                        <option value="">All Time</option>
+                        <option value="1">Last Hour</option>
+                        <option value="24">Last 24 Hours</option>
+                        <option value="168">Last Week</option>
+                    </select>
+                </div>
                 <button class="btn btn-primary" id="downloadReport">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -57,7 +80,7 @@
                     </svg>
                     Protocol Distribution
                 </h2>
-                <div id="protocol-chart"></div>
+                <div id="protocol-chart" class="chart-container"></div>
             </div>
 
             <div class="card">
@@ -69,7 +92,7 @@
                     </svg>
                     Connection Heatmap
                 </h2>
-                <div id="connection-heatmap"></div>
+                <div id="connection-heatmap" class="chart-container"></div>
             </div>
 
             <div class="card">
@@ -79,7 +102,7 @@
                     </svg>
                     Attack Patterns
                 </h2>
-                <div id="attack-pattern-chart"></div>
+                <div id="attack-pattern-chart" class="chart-container"></div>
             </div>
 
             <div class="card">
@@ -91,21 +114,18 @@
                 </h2>
                 <div class="threshold-controls">
                     <div class="threshold-group">
-                        <label>SYN Flood Threshold (pps):
-                            <input type="number" class="threshold-control" 
-                                   data-type="syn_flood" value="100" min="10" max="1000">
+                        <label>SYN Flood (pps):
+                            <input type="number" class="threshold-control" data-type="syn_flood" value="100" min="10" max="1000">
                         </label>
                     </div>
                     <div class="threshold-group">
-                        <label>Port Scan Threshold (ports/sec):
-                            <input type="number" class="threshold-control" 
-                                   data-type="port_scan" value="15" min="5" max="100">
+                        <label>Port Scan (ports/sec):
+                            <input type="number" class="threshold-control" data-type="port_scan" value="15" min="5" max="100">
                         </label>
                     </div>
                     <div class="threshold-group">
-                        <label>DDoS Threshold (pps):
-                            <input type="number" class="threshold-control" 
-                                   data-type="ddos" value="1000" min="100" max="10000">
+                        <label>DDoS (pps):
+                            <input type="number" class="threshold-control" data-type="ddos" value="1000" min="100" max="10000">
                         </label>
                     </div>
                 </div>
@@ -131,7 +151,7 @@
                     </svg>
                     Packet Rate
                 </h2>
-                <div id="packet-rate-chart"></div>
+                <div id="packet-rate-chart" class="chart-container"></div>
             </div>
 
             <div class="card">
@@ -140,9 +160,22 @@
                         <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
                         <polyline points="13 2 13 9 20 9"/>
                     </svg>
-                    Attack Statistics
+                    Network Performance
                 </h2>
-                <div id="threat-counter" class="threat-counter"></div>
+                <div class="performance-metrics">
+                    <div class="metric">
+                        <label>Packet Loss Rate</label>
+                        <span id="packet-loss">0%</span>
+                    </div>
+                    <div class="metric">
+                        <label>Network Latency</label>
+                        <span id="network-latency">0ms</span>
+                    </div>
+                    <div class="metric">
+                        <label>Bandwidth Usage</label>
+                        <span id="bandwidth-usage">0 Mbps</span>
+                    </div>
+                </div>
             </div>
 
             <div class="card">

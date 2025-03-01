@@ -1,0 +1,53 @@
+Problem Statement:
+
+Connection Heat Map & Attack Patterns are not displaying data.
+Dashboard layout is unorganized—tiles must fit on one screen without scrolling.
+If additional information is needed, use a two-window split-screen layout.
+Recent Activity tile is too long—should have a fixed size with internal scrolling instead of making the entire dashboard scroll.
+More network insights should be displayed to improve monitoring.
+Add interactive filtering options to allow users to filter threats based on severity, attack type, or source.
+Required Fixes & Enhancements:
+✅ Fix Connection Heat Map & Attack Pattern Visibility
+
+Ensure real-time updates in the Connection Heat Map (source-destination mappings).
+Properly populate Attack Pattern visualizations (DDoS, Brute Force, Port Scanning, MITM, etc.).
+Implement color-coded intensity levels in the heat map (Red = Critical, Yellow = Medium, Green = Normal).
+Add zoom and pan functionality to analyze network flows better.
+✅ Optimized Dashboard Layout
+
+Rearrange all tiles to fit on one screen without scrolling.
+If additional data is required, introduce a two-window split-screen layout.
+Make tiles auto-adjust based on screen resolution (desktop, tablet, mobile).
+✅ Fix Recent Activity Tile (Compact & Scrollable)
+
+Reduce tile size while ensuring all critical notifications remain visible.
+Implement internal scrolling within the tile instead of making the entire dashboard scroll.
+Enable users to click notifications to expand and view full details.
+✅ Enhance Dashboard with Additional Key Information
+
+Top 5 Source & Destination IPs (show most active network connections).
+Protocol Distribution Graph (TCP, UDP, ICMP, HTTP, DNS, etc.).
+Real-time Network Performance Metrics (Packet Loss, Latency, Bandwidth Usage).
+Threat Risk Score (Overall system security rating based on detected threats).
+Geo-location of Threat Sources (Map-based visualization of attack origins).
+Add an Incident Timeline View to see when threats occurred over time.
+✅ Interactive Threat Filtering & Sorting
+
+Filter threats by severity (Low, Medium, High, Critical).
+Sort attacks by type (DDoS, Brute Force, Malware, etc.).
+Filter by source IP, destination IP, and time range.
+Enable toggling between "Live" mode and "Historical" mode.
+✅ Tech & UI Upgrades for Better Performance & Aesthetics
+
+Ensure all visual elements refresh in real-time using WebSockets/Kafka.
+Refine UI with a cybersecurity-themed design (dark mode, color-coded alerts).
+Use D3.js/Plotly.js for interactive graphs and network insights.
+Make layout elements draggable and resizable for user customization.
+Final Deliverables:
+✅ Functional Connection Heat Map & Attack Pattern Visualization.
+✅ One-page, non-scrolling Dashboard with optimized tile layout.
+✅ Fixed Recent Activity Tile with internal scrolling & better UI.
+✅ Additional insightful data points for network monitoring.
+✅ Interactive Filtering & Sorting Options for Better Threat Analysis.
+✅ Improved UI aesthetics & real-time performance.
+🚀 Objective: Build a clean, interactive, and real-time security dashboard with clear threat visibility, advanced filtering, and seamless user experience.

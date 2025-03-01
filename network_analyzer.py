@@ -27,7 +27,11 @@ class NetworkAnalyzer:
         self.running = True
         self.packet_analyzer = PacketAnalyzer()
         self.threat_detector = ThreatDetector()
-        self.stats_collector = StatsCollector()
+        self.stats_collector = StatsCollector(
+            performance_metrics=True,  # Enable tracking of performance metrics
+            connection_tracking=True,  # Enable detailed connection tracking
+            attack_pattern_analysis=True  # Enable attack pattern analysis
+        )
         self.visualizer = Visualizer()
         self.ml_analyzer = MLAnalyzer()
         self.db_manager = DatabaseManager()
@@ -35,9 +39,20 @@ class NetworkAnalyzer:
         self.security_integrator = SecurityToolIntegrator()
 
         # Simulation parameters
-        self.simulation_speed = 1.0  # Default speed multiplier
-        self.attack_probability = 0.2  # 20% chance of attack patterns
-        self.max_packets = 10000  # Maximum packets to simulate
+        self.simulation_speed = 1.0
+        self.attack_probability = 0.2
+        self.max_packets = 10000
+
+        # Performance tracking
+        self.performance_metrics = {
+            'packet_loss': 0,
+            'latency': 0,
+            'bandwidth': 0
+        }
+
+        # Connection tracking for heatmap
+        self.connection_matrix = {}
+        self.update_interval = 1.0  # Update interval in seconds
 
         # Register signal handlers
         signal.signal(signal.SIGINT, self.signal_handler)
@@ -55,20 +70,23 @@ class NetworkAnalyzer:
             return
 
         try:
-            # Analyze packet
             packet_info = self.packet_analyzer.analyze_packet(packet)
             if packet_info:
-                # Log packet
-                self.db_manager.log_packet(packet_info)
+                # Update connection matrix for heatmap
+                src_ip = packet_info['src_ip']
+                dst_ip = packet_info['dst_ip']
+                key = f"{src_ip}->{dst_ip}"
+                self.connection_matrix[key] = self.connection_matrix.get(key, 0) + 1
 
-                # Threat detection
+                # Update performance metrics
+                self._update_performance_metrics(packet_info)
+
+                # Traditional threat detection logic
                 threats = self.threat_detector.detect_threats(packet_info)
                 security_threats = self.security_integrator.analyze_packet(packet_info)
-                if security_threats:
-                    threats.extend(security_threats)
-
-                if threats:
-                    for threat in threats:
+                if threats or security_threats:
+                    all_threats = threats + (security_threats if security_threats else [])
+                    for threat in all_threats:
                         logger.warning(f"Potential threat detected: {threat}")
                         self.db_manager.log_threat(threat)
                         if threat.get('severity') in ['high', 'critical']:
@@ -83,11 +101,32 @@ class NetworkAnalyzer:
                         if anomaly.get('confidence', 0) > 0.8:
                             self.notifier.send_alert(anomaly, channels=['webhook'])
 
-                # Update statistics and visualization
+                # Update statistics
                 self.stats_collector.update_stats(packet_info)
 
         except Exception as e:
             logger.error(f"Error processing packet: {e}")
+
+    def _update_performance_metrics(self, packet_info):
+        """Update network performance metrics"""
+        try:
+            # Simulate packet loss (random loss between 0-2%)
+            self.performance_metrics['packet_loss'] = random.uniform(0, 2)
+
+            # Simulate network latency (random between 5-100ms)
+            self.performance_metrics['latency'] = random.uniform(5, 100)
+
+            # Calculate bandwidth based on packet size and time
+            packet_size = packet_info.get('length', 0)
+            current_time = time.time()
+            if hasattr(self, '_last_bandwidth_update'):
+                time_diff = current_time - self._last_bandwidth_update
+                if time_diff > 0:
+                    self.performance_metrics['bandwidth'] = (packet_size * 8) / (time_diff * 1000000)  # Mbps
+            self._last_bandwidth_update = current_time
+
+        except Exception as e:
+            logger.error(f"Error updating performance metrics: {e}")
 
     def generate_sample_packet(self, protocol='TCP'):
         """Generate a realistic sample packet"""

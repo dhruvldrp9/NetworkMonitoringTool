@@ -306,6 +306,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize PDF report download
     document.getElementById('downloadReport').addEventListener('click', generatePDFReport);
+
+    // Initialize threat filters
+    initializeFilters();
 });
 
 function updateRealTimeMetrics(packet) {
@@ -346,4 +349,49 @@ async function generatePDFReport() {
     } finally {
         spinner.style.display = 'none';
     }
+}
+
+// Initialize threat filters
+function initializeFilters() {
+    const filterControls = document.querySelectorAll('.filter-control');
+    filterControls.forEach(control => {
+        control.addEventListener('change', () => {
+            applyFilters();
+        });
+    });
+}
+
+function applyFilters() {
+    const severityFilter = document.querySelector('#severity-filter').value;
+    const categoryFilter = document.querySelector('#category-filter').value;
+    const sourceFilter = document.querySelector('#source-filter').value;
+    const timeFilter = document.querySelector('#time-filter').value;
+
+    const threats = document.querySelectorAll('.threat-item');
+    threats.forEach(threat => {
+        let show = true;
+
+        if (severityFilter && !threat.classList.contains(severityFilter)) {
+            show = false;
+        }
+        if (categoryFilter && !threat.classList.contains(categoryFilter)) {
+            show = false;
+        }
+        if (sourceFilter) {
+            const sourceText = threat.querySelector('.threat-details').textContent;
+            if (!sourceText.includes(sourceFilter)) {
+                show = false;
+            }
+        }
+        if (timeFilter) {
+            const threatTime = new Date(threat.querySelector('.threat-time').textContent);
+            const filterTime = new Date();
+            filterTime.setHours(filterTime.getHours() - parseInt(timeFilter));
+            if (threatTime < filterTime) {
+                show = false;
+            }
+        }
+
+        threat.style.display = show ? 'block' : 'none';
+    });
 }
