@@ -1,0 +1,33 @@
+{
+    "patterns": {
+        "sql_injection": [
+            "UNION.*SELECT",
+            "INSERT.*INTO.*VALUES",
+            "DROP.*TABLE",
+            "DELETE.*FROM",
+            "--.*$",
+            "OR.*1=1"
+        ],
+        "xss": [
+            "<script>",
+            "javascript:",
+            "onmouseover=",
+            "onerror=",
+            "onload=",
+            "eval\\("
+        ],
+        "command_injection": [
+            ";.*\\b(cat|ls|pwd|echo)\\b",
+            "\\|.*\\b(bash|sh|ksh)\\b",
+            ">`.*`",
+            "\\$\\(.*\\)"
+        ]
+    },
+    "suspicious_ports": [
+        "31337",
+        "4444",
+        "5554",
+        "6667",
+        "9996"
+    ]
+}
