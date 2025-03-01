@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "flask>=3.1.0",
     "flask-socketio>=5.5.1",
+    "hdbscan>=0.8.40",
     "matplotlib>=3.10.1",
     "numpy>=2.2.3",
     "pandas>=2.2.3",
@@ -16,5 +17,6 @@ dependencies = [
     "scapy-python3>=0.26",
     "scikit-learn>=1.6.1",
     "sqlalchemy>=2.0.38",
+    "tensorflow>=2.14.0",
     "twilio>=9.4.6",
 ]

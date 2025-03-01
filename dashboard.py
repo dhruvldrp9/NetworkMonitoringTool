@@ -3,7 +3,8 @@ from flask_socketio import SocketIO
 import threading
 import time
 import logging
-from network_analyzer import NetworkAnalyzer
+import os
+import sys
 
 # Configure logging
 logging.basicConfig(
@@ -41,6 +42,8 @@ def start_analyzer():
     try:
         if analyzer is None:
             logger.info("Initializing Network Analyzer...")
+            # Import here to avoid circular imports and allow proper initialization
+            from network_analyzer import NetworkAnalyzer
             analyzer = NetworkAnalyzer()
 
             # Override packet processing to emit events
@@ -48,7 +51,10 @@ def start_analyzer():
                 try:
                     packet_info = analyzer.packet_analyzer.analyze_packet(packet)
                     if packet_info:
+                        # Traditional threats
                         threats = analyzer.threat_detector.detect_threats(packet_info)
+                        security_threats = analyzer.security_integrator.analyze_packet(packet_info)
+
                         if threats:
                             for threat in threats:
                                 socketio.emit('threat_detected', {
@@ -58,6 +64,29 @@ def start_analyzer():
                                     'severity': threat.get('severity', 'medium'),
                                     'category': threat.get('category', 'unknown')
                                 })
+
+                        if security_threats:
+                            for threat in security_threats:
+                                socketio.emit('threat_detected', {
+                                    'type': threat['type'],
+                                    'source': threat['source'],
+                                    'details': threat['details'],
+                                    'severity': threat.get('severity', 'medium'),
+                                    'category': 'ids'
+                                })
+
+                        # ML-based anomalies
+                        anomalies = analyzer.ml_analyzer.detect_anomalies(packet_info)
+                        if anomalies:
+                            for anomaly in anomalies:
+                                socketio.emit('threat_detected', {
+                                    'type': anomaly['type'],
+                                    'source': anomaly['source'],
+                                    'details': anomaly['details'],
+                                    'severity': 'high' if anomaly.get('confidence', 0) > 0.8 else 'medium',
+                                    'category': 'ml_anomaly'
+                                })
+
                         socketio.emit('packet_processed', packet_info)
                         analyzer.stats_collector.update_stats(packet_info)
                 except Exception as e:
@@ -67,7 +96,7 @@ def start_analyzer():
 
             # Start the analyzer thread
             logger.info("Starting analyzer thread...")
-            analyzer_thread = threading.Thread(target=analyzer.simulate_traffic)
+            analyzer_thread = threading.Thread(target=analyzer.simulate_attack_patterns)
             analyzer_thread.daemon = True
             analyzer_thread.start()
 
@@ -88,9 +117,9 @@ if __name__ == '__main__':
         socketio.run(app, 
                     host='0.0.0.0', 
                     port=5000, 
-                    debug=True, 
+                    debug=False,  # Set to False to avoid duplicate analyzers
                     use_reloader=False,
                     log_output=True)
     except Exception as e:
         logger.error(f"Failed to start dashboard: {e}")
-        raise
+        sys.exit(1)
