@@ -10,6 +10,8 @@ from stats_collector import StatsCollector
 from visualizer import Visualizer
 import signal
 import random
+from ml_analyzer import MLAnalyzer
+from database import DatabaseManager
 
 # Configure logging
 logging.basicConfig(
@@ -25,6 +27,8 @@ class NetworkAnalyzer:
         self.threat_detector = ThreatDetector()
         self.stats_collector = StatsCollector()
         self.visualizer = Visualizer()
+        self.ml_analyzer = MLAnalyzer()
+        self.db_manager = DatabaseManager()
 
         # Register signal handlers
         signal.signal(signal.SIGINT, self.signal_handler)
@@ -44,15 +48,31 @@ class NetworkAnalyzer:
         # Analyze packet
         packet_info = self.packet_analyzer.analyze_packet(packet)
         if packet_info:
-            # Check for threats
+            # Log packet to database
+            self.db_manager.log_packet(packet_info)
+
+            # Traditional threat detection
             threats = self.threat_detector.detect_threats(packet_info)
             if threats:
-                logger.warning(f"Potential threat detected: {threats}")
+                for threat in threats:
+                    logger.warning(f"Potential threat detected: {threat}")
+                    self.db_manager.log_threat(threat)
+
+            # ML-based anomaly detection
+            anomalies = self.ml_analyzer.detect_anomalies(packet_info)
+            if anomalies:
+                for anomaly in anomalies:
+                    logger.warning(f"Anomaly detected: {anomaly}")
+                    self.db_manager.log_anomaly(
+                        anomaly,
+                        self.ml_analyzer.extract_features(packet_info),
+                        self.ml_analyzer.baseline_stats
+                    )
 
             # Update statistics
             self.stats_collector.update_stats(packet_info)
 
-            # Update visualization (every 100 packets)
+            # Update visualization
             if self.stats_collector.packet_count % 100 == 0:
                 self.visualizer.update_display(self.stats_collector.get_stats())
 
