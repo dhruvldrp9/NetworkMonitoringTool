@@ -71,16 +71,12 @@ class NetworkAnalyzer:
                         if threat.get('severity') in ['high', 'critical']:
                             self.notifier.send_alert(threat, channels=['webhook'])
 
-                # ML-based anomaly detection
+                # Statistical anomaly detection
                 anomalies = self.ml_analyzer.detect_anomalies(packet_info)
                 if anomalies:
                     for anomaly in anomalies:
                         logger.warning(f"Anomaly detected: {anomaly}")
-                        self.db_manager.log_anomaly(
-                            anomaly,
-                            self.ml_analyzer.extract_features(packet_info),
-                            self.ml_analyzer.baseline_stats
-                        )
+                        self.db_manager.log_anomaly(anomaly)
                         # Send notifications for high confidence anomalies
                         if anomaly.get('confidence', 0) > 0.8:
                             self.notifier.send_alert(anomaly, channels=['webhook'])
@@ -161,73 +157,47 @@ class NetworkAnalyzer:
 
     def simulate_attack_patterns(self):
         """Simulate various attack patterns to test detection"""
-        # Simulate SYN flood
-        for _ in range(50):
+        logger.info("Starting attack pattern simulation...")
+        try:
+            # Simulate SYN flood
+            for _ in range(50):
+                packet = self.generate_sample_packet('TCP')
+                self.process_packet(packet)
+
+            # Simulate port scan
+            target_ip = "10.0.0.100"
+            for port in range(20, 25):
+                packet = IP(src="192.168.1.100", dst=target_ip)/TCP(sport=1024, dport=port, flags='S')
+                self.process_packet(packet)
+
+            # Simulate SQL injection
             packet = self.generate_sample_packet('TCP')
+            packet = packet/Raw(load=b"SELECT * FROM users WHERE id = 1 OR '1'='1'")
             self.process_packet(packet)
 
-        # Simulate port scan
-        target_ip = "10.0.0.100"
-        for port in range(20, 25):
-            packet = IP(src="192.168.1.100", dst=target_ip)/TCP(sport=1024, dport=port, flags='S')
+            # Simulate command injection
+            packet = self.generate_sample_packet('TCP')
+            packet = packet/Raw(load=b"; cat /etc/passwd; echo 'pwned'")
             self.process_packet(packet)
 
-        # Simulate SQL injection
-        packet = self.generate_sample_packet('TCP')
-        packet = packet/Raw(load=b"SELECT * FROM users WHERE id = 1 OR '1'='1'")
-        self.process_packet(packet)
+            # Simulate DNS tunneling
+            for _ in range(10):
+                packet = IP(src="192.168.1.100", dst="10.0.0.53")/UDP(sport=random.randint(1024, 65535), dport=53)/Raw(load=b"A"*200 + b".example.com")
+                self.process_packet(packet)
 
-        # Simulate command injection
-        packet = self.generate_sample_packet('TCP')
-        packet = packet/Raw(load=b"; cat /etc/passwd; echo 'pwned'")
-        self.process_packet(packet)
+            logger.info("Attack pattern simulation completed")
 
-        # Simulate DNS tunneling
-        for _ in range(10):
-            packet = IP(src="192.168.1.100", dst="10.0.0.53")/UDP(sport=random.randint(1024, 65535), dport=53)/Raw(load=b"A"*200 + b".example.com")
-            self.process_packet(packet)
-
-        # Let the system process and detect anomalies
-        time.sleep(2)
+        except Exception as e:
+            logger.error(f"Error during attack simulation: {e}")
+            sys.exit(1)
 
     def _generate_mac(self):
         """Generate a random MAC address"""
         return ":".join([f"{random.randint(0, 255):02x}" for _ in range(6)])
 
-
-    def simulate_traffic(self):
-        """Simulate network traffic for testing"""
-        logger.info("Starting traffic simulation...")
-        protocols = ['TCP', 'UDP', 'ICMP', 'ARP']
-        packet_count = 0
-
-        # Add weights to make TCP more common
-        protocol_weights = [0.6, 0.3, 0.05, 0.05]  # 60% TCP, 30% UDP, 5% ICMP, 5% ARP
-
-        try:
-            while self.running and packet_count < 1000:  # Simulate 1000 packets
-                protocol = random.choices(protocols, weights=protocol_weights)[0]
-
-                if not self.running:
-                    break
-
-                packet = self.generate_sample_packet(protocol)
-                if packet:
-                    self.process_packet(packet)
-                    packet_count += 1
-                    # Variable delay to simulate more realistic traffic patterns
-                    time.sleep(random.uniform(0.01, 0.05))
-
-            logger.info(f"Simulation completed. Processed {packet_count} packets.")
-            self.visualizer.show_final_stats(self.stats_collector.get_stats())
-
-        except Exception as e:
-            logger.error(f"Error during simulation: {e}")
-            sys.exit(1)
-
 def main():
     analyzer = NetworkAnalyzer()
-    analyzer.simulate_attack_patterns() # changed to call the new function
+    analyzer.simulate_attack_patterns()
 
 if __name__ == "__main__":
     main()

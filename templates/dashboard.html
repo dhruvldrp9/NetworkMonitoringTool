@@ -3,21 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Network Traffic Analyzer Dashboard</title>
+    <title>Network Security Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="dashboard">
         <header>
-            <h1>Network Traffic Analyzer</h1>
-            <div class="status">Status: <span id="status">Running</span></div>
+            <div class="header-title">
+                <h1>Network Security Dashboard</h1>
+                <div class="status">Status: <span id="status" class="active">Connected</span></div>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-primary" id="downloadReport">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Download Report
+                </button>
+                <div class="loading-spinner" id="loadingSpinner" style="display: none;"></div>
+            </div>
         </header>
 
         <div class="grid-container">
             <div class="card">
-                <h2>Traffic Overview</h2>
+                <h2>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                    Traffic Overview
+                </h2>
                 <div id="traffic-stats">
                     <p>Total Packets: <span id="total-packets">0</span></p>
                     <p>Packets/Second: <span id="packets-per-second">0</span></p>
@@ -28,22 +48,47 @@
             </div>
 
             <div class="card">
-                <h2>Protocol Distribution</h2>
+                <h2>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                        <line x1="9" y1="9" x2="9.01" y2="9"/>
+                        <line x1="15" y1="9" x2="15.01" y2="9"/>
+                    </svg>
+                    Protocol Distribution
+                </h2>
                 <div id="protocol-chart"></div>
             </div>
 
             <div class="card">
-                <h2>Connection Heatmap</h2>
+                <h2>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="3" y1="9" x2="21" y2="9"/>
+                        <line x1="3" y1="15" x2="21" y2="15"/>
+                    </svg>
+                    Connection Heatmap
+                </h2>
                 <div id="connection-heatmap"></div>
             </div>
 
             <div class="card">
-                <h2>Attack Patterns</h2>
+                <h2>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    </svg>
+                    Attack Patterns
+                </h2>
                 <div id="attack-pattern-chart"></div>
             </div>
 
             <div class="card">
-                <h2>Threat Detection</h2>
+                <h2>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                    Threat Detection
+                </h2>
                 <div class="threshold-controls">
                     <div class="threshold-group">
                         <label>SYN Flood Threshold (pps):
@@ -68,22 +113,45 @@
             </div>
 
             <div class="card">
-                <h2>Top IPs</h2>
+                <h2>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                    Top IPs
+                </h2>
                 <div id="top-ips"></div>
             </div>
 
             <div class="card">
-                <h2>Packet Rate</h2>
+                <h2>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 6l-9.5 9.5-5-5L1 18"/>
+                        <path d="M17 6h6v6"/>
+                    </svg>
+                    Packet Rate
+                </h2>
                 <div id="packet-rate-chart"></div>
             </div>
 
             <div class="card">
-                <h2>Attack Statistics</h2>
+                <h2>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                        <polyline points="13 2 13 9 20 9"/>
+                    </svg>
+                    Attack Statistics
+                </h2>
                 <div id="threat-counter" class="threat-counter"></div>
             </div>
 
             <div class="card">
-                <h2>Recent Activity</h2>
+                <h2>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    Recent Activity
+                </h2>
                 <div id="activity-log" class="log-container"></div>
             </div>
         </div>

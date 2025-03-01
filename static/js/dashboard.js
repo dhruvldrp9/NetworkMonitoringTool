@@ -263,9 +263,47 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('update_threshold', { type, value });
         });
     });
+
+    // Initialize PDF report download
+    document.getElementById('downloadReport').addEventListener('click', generatePDFReport);
 });
 
 function updateRealTimeMetrics(packet) {
     // Placeholder for updating real-time metrics based on individual packets
     //  This might involve updating counters or other elements on the dashboard.
+}
+
+async function generatePDFReport() {
+    const spinner = document.getElementById('loadingSpinner');
+    spinner.style.display = 'block';
+
+    try {
+        const response = await fetch('/generate_report', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                timestamp: new Date().toISOString()
+            })
+        });
+
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `security_report_${new Date().toISOString().split('T')[0]}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } else {
+            console.error('Failed to generate PDF report');
+        }
+    } catch (error) {
+        console.error('Error generating PDF report:', error);
+    } finally {
+        spinner.style.display = 'none';
+    }
 }

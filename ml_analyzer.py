@@ -23,29 +23,25 @@ class MLAnalyzer:
         }
 
     def detect_anomalies(self, packet_info: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Detect anomalies using statistical analysis"""
-        anomalies = []
+        """Detect anomalies using simple statistical analysis"""
         try:
-            # Update history and stats
+            # Update packet history and stats
             self.packet_history.append(packet_info)
             self._update_stats(packet_info)
 
-            # Check for various anomalies
-            size_anomalies = self._check_packet_size_anomalies(packet_info)
-            rate_anomalies = self._check_rate_anomalies(packet_info)
-            protocol_anomalies = self._check_protocol_anomalies(packet_info)
-
-            anomalies.extend(size_anomalies)
-            anomalies.extend(rate_anomalies)
-            anomalies.extend(protocol_anomalies)
+            # Run anomaly checks
+            anomalies = []
+            anomalies.extend(self._check_packet_size_anomalies(packet_info))
+            anomalies.extend(self._check_rate_anomalies(packet_info))
+            anomalies.extend(self._check_protocol_anomalies(packet_info))
+            return anomalies
 
         except Exception as e:
             logger.error(f"Error in anomaly detection: {e}")
+            return []
 
-        return anomalies
-
-    def _update_stats(self, packet_info: Dict[str, Any]):
-        """Update statistical baseline"""
+    def _update_stats(self, packet_info: Dict[str, Any]) -> None:
+        """Update statistical baselines"""
         try:
             # Update packet sizes
             self.baseline_stats['packet_sizes'].append(packet_info['length'])
@@ -61,7 +57,7 @@ class MLAnalyzer:
             self.baseline_stats['unique_ips'].add(packet_info['src_ip'])
             self.baseline_stats['unique_ips'].add(packet_info['dst_ip'])
 
-            # Update port information if available
+            # Update port information
             if 'details' in packet_info and 'dst_port' in packet_info['details']:
                 port = packet_info['details']['dst_port']
                 self.baseline_stats['port_counts'][port] = \
@@ -71,63 +67,68 @@ class MLAnalyzer:
             logger.error(f"Error updating stats: {e}")
 
     def _check_packet_size_anomalies(self, packet_info: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Check for anomalies in packet sizes"""
-        anomalies = []
+        """Check for unusually large packets"""
         try:
-            current_size = packet_info['length']
-            if len(self.baseline_stats['packet_sizes']) > 10:
-                avg_size = np.mean(self.baseline_stats['packet_sizes'][-10:])
-                std_size = np.std(self.baseline_stats['packet_sizes'][-10:])
-
-                if current_size > avg_size + (3 * std_size):
-                    anomalies.append({
-                        'type': 'LARGE_PACKET',
-                        'source': packet_info['src_ip'],
-                        'details': f'Unusually large packet: {current_size} bytes',
-                        'confidence': 0.9,
-                        'severity': 'medium',
-                        'category': 'anomaly'
-                    })
+            if packet_info['length'] > 10000:  # Unusually large packet threshold
+                return [{
+                    'type': 'LARGE_PACKET',
+                    'source': packet_info['src_ip'],
+                    'details': f'Unusually large packet: {packet_info["length"]} bytes',
+                    'confidence': 0.9,
+                    'severity': 'medium',
+                    'category': 'anomaly'
+                }]
         except Exception as e:
             logger.error(f"Error checking packet sizes: {e}")
-        return anomalies
+        return []
 
     def _check_rate_anomalies(self, packet_info: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Check for anomalies in packet rates"""
-        anomalies = []
+        """Check for abnormal packet rates"""
         try:
-            # Check connection rate from same source
-            recent_packets = list(self.packet_history)[-10:]
+            # Count packets from same source in recent history
+            recent_packets = list(self.packet_history)[-10:]  # Last 10 packets
             src_ip = packet_info['src_ip']
             src_count = sum(1 for p in recent_packets if p['src_ip'] == src_ip)
 
             if src_count > 8:  # More than 8 packets in last 10
-                anomalies.append({
+                return [{
                     'type': 'HIGH_RATE',
                     'source': src_ip,
                     'details': 'High packet rate from source',
                     'confidence': 0.8,
                     'severity': 'medium',
                     'category': 'anomaly'
-                })
+                }]
         except Exception as e:
             logger.error(f"Error checking rates: {e}")
-        return anomalies
+        return []
 
     def _check_protocol_anomalies(self, packet_info: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Check for protocol-based anomalies"""
-        anomalies = []
+        """Check for unusual protocols"""
         try:
             protocol = packet_info['protocol']
             if protocol not in ['TCP', 'UDP', 'ICMP', 'ARP']:
-                anomalies.append({
+                return [{
                     'type': 'UNUSUAL_PROTOCOL',
                     'source': packet_info['src_ip'],
                     'details': f'Unusual protocol detected: {protocol}',
                     'confidence': 0.7,
                     'severity': 'low',
                     'category': 'anomaly'
-                })
+                }]
         except Exception as e:
             logger.error(f"Error checking protocols: {e}")
-        return anomalies
+        return []
+
+    def extract_features(self, packet_info: Dict[str, Any]) -> np.ndarray:
+        """Extract basic statistical features for analysis"""
+        return np.array([
+            packet_info['length'],
+            hash(packet_info['src_ip']) % 1000,
+            hash(packet_info['dst_ip']) % 1000,
+            hash(packet_info['protocol']) % 100
+        ], dtype=float)
+
+    def get_baseline_stats(self):
+        """Return current baseline statistics"""
+        return self.baseline_stats
