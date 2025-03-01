@@ -1,5 +1,8 @@
 from collections import defaultdict
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 class StatsCollector:
     def __init__(self, performance_metrics=False, connection_tracking=False, attack_pattern_analysis=False):
@@ -7,6 +10,7 @@ class StatsCollector:
         self.performance_metrics_enabled = performance_metrics
         self.connection_tracking_enabled = connection_tracking
         self.attack_pattern_analysis_enabled = attack_pattern_analysis
+        logger.info(f"StatsCollector initialized with features: performance_metrics={performance_metrics}, connection_tracking={connection_tracking}, attack_pattern_analysis={attack_pattern_analysis}")
         self.reset_stats()
 
     def reset_stats(self):
@@ -31,6 +35,7 @@ class StatsCollector:
         # Attack pattern analysis
         self.attack_timestamps = []
         self.attack_counts = []
+        self.attack_types = defaultdict(int)
 
         # Performance metrics
         self.performance_metrics = {
@@ -64,7 +69,6 @@ class StatsCollector:
             # Update matrix periodically
             current_time = time.time()
             if current_time - self.last_update >= 1.0:  # Update every second
-                # Convert connection data to matrix format
                 connections = sorted(self.unique_connections.items())
                 if connections:
                     src_ips = list(set([c.split('->')[0] for c in self.unique_connections.keys()]))
@@ -90,14 +94,25 @@ class StatsCollector:
                 self.packet_rates.pop(0)
 
         # Update attack pattern data if enabled
-        if self.attack_pattern_analysis_enabled and hasattr(packet_info, 'is_attack'):
-            self.attack_timestamps.append(time.time())
-            self.attack_counts.append(self.packet_count)
+        if self.attack_pattern_analysis_enabled:
+            # Check if packet is part of an attack pattern
+            is_attack = (
+                packet_info.get('is_attack', False) or 
+                'attack_type' in packet_info or
+                ('details' in packet_info and 'attack' in str(packet_info['details']).lower())
+            )
 
-            # Keep only recent attack history
-            if len(self.attack_timestamps) > 100:
-                self.attack_timestamps.pop(0)
-                self.attack_counts.pop(0)
+            if is_attack:
+                logger.debug(f"Attack detected - Type: {packet_info.get('attack_type', 'Unknown')}, Source: {packet_info['src_ip']}")
+                self.attack_timestamps.append(int(current_time))
+                self.attack_counts.append(self.packet_count)
+                if 'attack_type' in packet_info:
+                    self.attack_types[packet_info['attack_type']] += 1
+
+                # Keep only recent attack history
+                if len(self.attack_timestamps) > 100:
+                    self.attack_timestamps.pop(0)
+                    self.attack_counts.pop(0)
 
     def get_stats(self):
         """Return current statistics"""
@@ -120,11 +135,13 @@ class StatsCollector:
             'connections': self.connection_matrix if self.connection_tracking_enabled else None,
             'attacks': {
                 'timestamps': self.attack_timestamps,
-                'counts': self.attack_counts
+                'counts': self.attack_counts,
+                'types': dict(self.attack_types)
             } if self.attack_pattern_analysis_enabled else None
         }
 
         if self.performance_metrics_enabled:
             stats['performance'] = self.performance_metrics
 
+        logger.debug(f"Attack stats: {len(self.attack_timestamps)} events, {len(self.attack_types)} types")
         return stats

@@ -42,13 +42,22 @@ socket.on('packet_processed', (packet) => {
 
 // Update functions
 function updateTrafficStats(stats) {
-    document.getElementById('total-packets').textContent = stats.general.total_packets;
-    document.getElementById('packets-per-second').textContent = 
-        stats.general.packets_per_second.toFixed(2);
-    document.getElementById('total-bytes').textContent = formatBytes(stats.general.total_bytes);
-    document.getElementById('unique-ips').textContent = stats.general.unique_ips || 0;
-    document.getElementById('avg-packet-size').textContent = 
-        formatBytes(stats.general.avg_packet_size || 0);
+    const elements = {
+        'total-packets': stats.general.total_packets,
+        'packets-per-second': stats.general.packets_per_second.toFixed(2),
+        'total-bytes': formatBytes(stats.general.total_bytes),
+        'unique-ips': stats.general.unique_ips || 0,
+        'avg-packet-size': formatBytes(stats.general.avg_packet_size || 0)
+    };
+
+    Object.entries(elements).forEach(([id, value]) => {
+        const element = document.getElementById(id);
+        if (element && element.textContent !== value.toString()) {
+            element.classList.add('updating');
+            element.textContent = value;
+            setTimeout(() => element.classList.remove('updating'), 500);
+        }
+    });
 }
 
 function updateProtocolChart(protocols) {
@@ -59,7 +68,7 @@ function updateProtocolChart(protocols) {
         hole: 0.4,
         marker: {
             colors: [
-                '#2ecc71', '#3498db', '#9b59b6', 
+                '#2ecc71', '#3498db', '#9b59b6',
                 '#e74c3c', '#f1c40f', '#1abc9c'
             ]
         }
@@ -124,22 +133,52 @@ function updateConnectionHeatmap(connections) {
 }
 
 function updateAttackPatterns(attacks) {
-    if (!attacks) return;
+    if (!attacks || !attacks.timestamps || !attacks.counts ||
+        attacks.timestamps.length === 0 || attacks.counts.length === 0) {
+        console.log("No attack pattern data available");
+        const container = document.getElementById('attack-pattern-chart');
+        if (container) {
+            container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-secondary);">No attack pattern data available</div>';
+        }
+        return;
+    }
+
+    console.log(`Attack data available: ${attacks.timestamps.length} events`);
+
+    // Convert timestamps to readable format
+    const formattedTimes = attacks.timestamps.map(ts => {
+        const date = new Date(ts * 1000);
+        return date.toLocaleTimeString();
+    });
 
     const data = [{
         type: 'scatter',
         mode: 'lines+markers',
-        x: attacks.timestamps,
+        x: formattedTimes,
         y: attacks.counts,
-        line: { color: '#e74c3c' },
+        line: { color: '#e74c3c', width: 2 },
+        marker: {
+            color: '#e74c3c',
+            size: 6
+        },
         name: 'Attack Events'
     }];
 
     const layout = {
         margin: { t: 30, b: 40, l: 50, r: 20 },
         title: 'Attack Pattern Timeline',
-        xaxis: { title: 'Time', color: '#ffffff' },
-        yaxis: { title: 'Attack Count', color: '#ffffff' },
+        xaxis: {
+            title: 'Time',
+            color: '#ffffff',
+            showgrid: true,
+            gridcolor: 'rgba(255, 255, 255, 0.1)'
+        },
+        yaxis: {
+            title: 'Attack Count',
+            color: '#ffffff',
+            showgrid: true,
+            gridcolor: 'rgba(255, 255, 255, 0.1)'
+        },
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)',
         font: {
@@ -154,7 +193,10 @@ function updateAttackPatterns(attacks) {
 
     // Get container height
     const container = document.getElementById('attack-pattern-chart');
-    layout.height = container.clientHeight;
+    if (container) {
+        layout.height = container.clientHeight;
+        console.log(`Chart container height: ${container.clientHeight}px`);
+    }
 
     Plotly.newPlot('attack-pattern-chart', data, layout, config);
 }
@@ -192,13 +234,15 @@ function updatePacketRateChart(rates) {
 
 function updateTopIPs(ips) {
     const container = document.getElementById('top-ips');
+    if (!container) return;
+
     const maxCount = Math.max(...Object.values(ips));
     container.innerHTML = Object.entries(ips)
         .map(([ip, count]) => `
             <div class="ip-entry">
+                <div class="progress-bar" style="width: ${(count / maxCount * 100)}%"></div>
                 <span class="ip-address">${ip}</span>
                 <span class="packet-count">${count} packets</span>
-                <div class="progress-bar" style="width: ${(count / maxCount * 100)}%"></div>
             </div>
         `)
         .join('');
@@ -226,9 +270,6 @@ function addThreat(threat) {
     if (container.children.length > 100) {
         container.removeChild(container.lastChild);
     }
-
-    // Update threat counter and trigger alert
-    updateThreatCounter(threat.category, threat.severity);
 }
 
 function updateThreatCounter(category, severity) {
@@ -252,7 +293,7 @@ function updateThreatCounter(category, severity) {
     counterElement.innerHTML = `
         <div class="total-threats">Total Threats: ${counts.total}</div>
         <div class="threat-breakdown">
-            ${Object.entries(counts.severities).map(([sev, count]) => 
+            ${Object.entries(counts.severities).map(([sev, count]) =>
                 `<div class="severity-count ${sev}">
                     ${sev}: <span class="count">${count}</span>
                 </div>`
@@ -320,10 +361,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Handle window resize for charts
     window.addEventListener('resize', () => {
-        updateConnectionHeatmap(connectionHeatmap?.data);
-        updateAttackPatterns(attackPatternChart?.data);
-        updatePacketRateChart(packetRateChart?.data);
-        updateProtocolChart(protocolChart?.data);
+        const charts = [
+            { id: 'connection-heatmap', data: connectionHeatmap?.data },
+            { id: 'attack-pattern-chart', data: attackPatternChart?.data },
+            { id: 'packet-rate-chart', data: packetRateChart?.data },
+            { id: 'protocol-chart', data: protocolChart?.data }
+        ];
+
+        charts.forEach(({ id, data }) => {
+            const container = document.getElementById(id);
+            if (container && data) {
+                const layout = { height: container.clientHeight };
+                Plotly.relayout(id, layout);
+            }
+        });
     });
 });
 

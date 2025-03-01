@@ -106,6 +106,7 @@ header {
     flex-direction: column;
     min-height: 300px;
     max-height: 500px;
+    animation: chartFadeIn 0.5s ease-out; /* Added animation */
 }
 
 .card:hover {
@@ -127,7 +128,7 @@ header {
     scrollbar-width: thin;
     scrollbar-color: var(--accent-color) var(--secondary-bg);
     padding-right: 10px;
-    max-height: calc(100% - 60px);
+    max-height: calc(100% - 120px);
 }
 
 .threat-item {
@@ -215,7 +216,8 @@ header {
     flex-wrap: wrap;
 }
 
-.severity-count, .category-count {
+.severity-count,
+.category-count {
     padding: 6px 12px;
     border-radius: 6px;
     font-size: 0.9em;
@@ -232,18 +234,27 @@ header {
     margin: 8px 0;
     background-color: rgba(255, 255, 255, 0.05);
     border-radius: 6px;
+    overflow: hidden;
+    gap: 10px;
+    animation: chartFadeIn 0.3s ease-out; /* Added animation */
 }
 
 .ip-address {
     flex: 1;
     z-index: 1;
     color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
 .packet-count {
-    margin-left: 10px;
     color: var(--text-secondary);
     z-index: 1;
+    white-space: nowrap;
+    font-size: 0.9em;
+    margin-left: auto;
 }
 
 .progress-bar {
@@ -256,12 +267,24 @@ header {
     transition: width 0.3s ease;
 }
 
+#top-ips {
+    overflow-y: auto;
+    max-height: calc(100% - 60px);
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-color) var(--secondary-bg);
+    padding: 10px;
+    margin-right: -10px;
+}
+
 .chart-container {
     position: relative;
     width: 100%;
     height: calc(100% - 60px);
     min-height: 250px;
+    max-height: 400px;
     overflow: hidden;
+    padding: 10px;
+    transition: all 0.3s ease; /* Added transition */
 }
 
 .log-container {
@@ -333,6 +356,50 @@ header {
     to {
         opacity: 1;
         transform: translateY(0);
+    }
+}
+
+/* Add animation keyframes */
+@keyframes chartFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes dataUpdate {
+    0% {
+        color: var(--accent-color);
+    }
+    100% {
+        color: var(--text-primary);
+    }
+}
+
+
+/* Update statistics transition */
+#traffic-stats p span {
+    transition: color 0.3s ease;
+}
+
+#traffic-stats p span.updating {
+    animation: dataUpdate 0.5s ease;
+}
+
+/* Improve chart container responsiveness */
+@media (max-width: 1600px) {
+    .chart-container {
+        min-height: 200px;
+    }
+}
+
+@media (max-width: 1200px) {
+    .chart-container {
+        min-height: 180px;
     }
 }
 

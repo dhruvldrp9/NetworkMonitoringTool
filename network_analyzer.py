@@ -81,6 +81,10 @@ class NetworkAnalyzer:
                 # Update performance metrics
                 self._update_performance_metrics(packet_info)
 
+                # Mark packet for attack pattern tracking
+                packet_info['is_attack'] = False
+                packet_info['attack_type'] = None
+
                 # Traditional threat detection logic
                 threats = self.threat_detector.detect_threats(packet_info)
                 security_threats = self.security_integrator.analyze_packet(packet_info)
@@ -91,6 +95,9 @@ class NetworkAnalyzer:
                         self.db_manager.log_threat(threat)
                         if threat.get('severity') in ['high', 'critical']:
                             self.notifier.send_alert(threat, channels=['webhook', 'email'])
+                        # Mark packet as attack for pattern tracking
+                        packet_info['is_attack'] = True
+                        packet_info['attack_type'] = threat.get('type', 'Unknown')
 
                 # Statistical anomaly detection
                 anomalies = self.ml_analyzer.detect_anomalies(packet_info)
@@ -100,6 +107,9 @@ class NetworkAnalyzer:
                         self.db_manager.log_anomaly(anomaly)
                         if anomaly.get('confidence', 0) > 0.8:
                             self.notifier.send_alert(anomaly, channels=['webhook'])
+                        # Mark packet as attack for pattern tracking
+                        packet_info['is_attack'] = True
+                        packet_info['attack_type'] = 'ML_ANOMALY'
 
                 # Update statistics
                 self.stats_collector.update_stats(packet_info)
@@ -262,7 +272,17 @@ class NetworkAnalyzer:
                 dport=80,
                 flags='S'
             )
-            self.process_packet(packet)
+            # Mark packet as attack
+            packet_info = {
+                'src_ip': packet[IP].src,
+                'dst_ip': packet[IP].dst,
+                'protocol': 'TCP',
+                'length': len(packet),
+                'details': {'src_port': packet[TCP].sport, 'dst_port': packet[TCP].dport},
+                'is_attack': True,
+                'attack_type': 'SYN_FLOOD'
+            }
+            self.process_packet(packet_info)
             time.sleep(0.01 / self.simulation_speed)
 
     def _port_scan_attack(self):
@@ -274,14 +294,33 @@ class NetworkAnalyzer:
                 dport=port,
                 flags='S'
             )
-            self.process_packet(packet)
+            # Mark packet as attack
+            packet_info = {
+                'src_ip': packet[IP].src,
+                'dst_ip': packet[IP].dst,
+                'protocol': 'TCP',
+                'length': len(packet),
+                'details': {'src_port': packet[TCP].sport, 'dst_port': packet[TCP].dport},
+                'is_attack': True,
+                'attack_type': 'PORT_SCAN'
+            }
+            self.process_packet(packet_info)
             time.sleep(0.05 / self.simulation_speed)
 
     def _sql_injection_attack(self):
         """Simulate SQL injection attack"""
         packet = self.generate_sample_packet('TCP')
         packet = packet/Raw(load=b"SELECT * FROM users WHERE id = 1 OR '1'='1'")
-        self.process_packet(packet)
+        packet_info = {
+            'src_ip': packet[IP].src,
+            'dst_ip': packet[IP].dst,
+            'protocol': 'TCP',
+            'length': len(packet),
+            'details': {'src_port': packet[TCP].sport, 'dst_port': packet[TCP].dport},
+            'is_attack': True,
+            'attack_type': 'SQL_INJECTION'
+        }
+        self.process_packet(packet_info)
 
     def _command_injection_attack(self):
         """Simulate command injection attack"""
@@ -307,7 +346,17 @@ class NetworkAnalyzer:
                 sport=random.randint(1024, 65535),
                 dport=random.randint(1, 65535)
             )/Raw(load=b"X"*1000)
-            self.process_packet(packet)
+            # Mark packet as attack
+            packet_info = {
+                'src_ip': packet[IP].src,
+                'dst_ip': packet[IP].dst,
+                'protocol': 'UDP',
+                'length': len(packet),
+                'details': {'src_port': packet[UDP].sport, 'dst_port': packet[UDP].dport},
+                'is_attack': True,
+                'attack_type': 'DDOS'
+            }
+            self.process_packet(packet_info)
             time.sleep(0.01 / self.simulation_speed)
 
     def _generate_mac(self):
