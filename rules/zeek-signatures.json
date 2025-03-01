@@ -1,0 +1,32 @@
+[
+    {
+        "name": "DNS Tunneling",
+        "pattern": {
+            "protocol": "UDP",
+            "details": {
+                "dst_port": 53
+            },
+            "payload": {
+                "length_gt": 200
+            }
+        },
+        "description": "Possible DNS tunneling detected",
+        "severity": "high",
+        "category": "data_exfiltration"
+    },
+    {
+        "name": "SMB Version 1",
+        "pattern": {
+            "protocol": "TCP",
+            "details": {
+                "dst_port": 445
+            },
+            "payload": {
+                "contains": ["SMBv1"]
+            }
+        },
+        "description": "Outdated SMB protocol version detected",
+        "severity": "medium",
+        "category": "vulnerable_protocol"
+    }
+]

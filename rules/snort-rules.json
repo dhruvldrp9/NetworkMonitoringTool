@@ -1,0 +1,25 @@
+[
+    {
+        "name": "FTP Brute Force",
+        "pattern": {
+            "protocol": "TCP",
+            "details": {
+                "dst_port": 21
+            }
+        },
+        "description": "Potential FTP brute force attempt",
+        "severity": "high",
+        "category": "brute_force"
+    },
+    {
+        "name": "Shellshock Attack",
+        "pattern": {
+            "payload": {
+                "contains": ["() {", ">;"]
+            }
+        },
+        "description": "Possible Shellshock exploitation attempt",
+        "severity": "critical",
+        "category": "exploit"
+    }
+]

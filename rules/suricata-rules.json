@@ -1,0 +1,28 @@
+[
+    {
+        "name": "SQL Injection Attempt",
+        "pattern": {
+            "payload": {
+                "contains": ["SELECT", "UNION", "DROP TABLE"]
+            },
+            "protocol": "TCP",
+            "details": {
+                "dst_port": 80
+            }
+        },
+        "description": "Possible SQL injection attempt detected",
+        "severity": "high",
+        "category": "web_attack"
+    },
+    {
+        "name": "Command Injection",
+        "pattern": {
+            "payload": {
+                "contains": [";", "|", "&&", "||"]
+            }
+        },
+        "description": "Possible command injection attempt",
+        "severity": "critical",
+        "category": "web_attack"
+    }
+]

