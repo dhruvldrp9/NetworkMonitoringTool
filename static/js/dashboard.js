@@ -74,10 +74,20 @@ function updateProtocolChart(protocols) {
         legend: {
             orientation: 'h',
             y: -0.2
+        },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: {
+            color: '#ffffff'
         }
     };
 
-    Plotly.newPlot('protocol-chart', data, layout);
+    const config = {
+        responsive: true,
+        displayModeBar: false
+    };
+
+    Plotly.newPlot('protocol-chart', data, layout, config);
 }
 
 function updateConnectionHeatmap(connections) {
@@ -95,11 +105,21 @@ function updateConnectionHeatmap(connections) {
         height: 400,
         margin: { t: 30, b: 40, l: 100, r: 20 },
         title: 'Connection Heatmap',
-        xaxis: { title: 'Destination IPs' },
-        yaxis: { title: 'Source IPs' }
+        xaxis: { title: 'Destination IPs', color: '#ffffff' },
+        yaxis: { title: 'Source IPs', color: '#ffffff' },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: {
+            color: '#ffffff'
+        }
     };
 
-    Plotly.newPlot('connection-heatmap', data, layout);
+    const config = {
+        responsive: true,
+        displayModeBar: false
+    };
+
+    Plotly.newPlot('connection-heatmap', data, layout, config);
 }
 
 function updateAttackPatterns(attacks) {
@@ -118,11 +138,21 @@ function updateAttackPatterns(attacks) {
         height: 300,
         margin: { t: 30, b: 40, l: 50, r: 20 },
         title: 'Attack Pattern Timeline',
-        xaxis: { title: 'Time' },
-        yaxis: { title: 'Attack Count' }
+        xaxis: { title: 'Time', color: '#ffffff' },
+        yaxis: { title: 'Attack Count', color: '#ffffff' },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: {
+            color: '#ffffff'
+        }
     };
 
-    Plotly.newPlot('attack-pattern-chart', data, layout);
+    const config = {
+        responsive: true,
+        displayModeBar: false
+    };
+
+    Plotly.newPlot('attack-pattern-chart', data, layout, config);
 }
 
 function updatePacketRateChart(rates) {
@@ -136,11 +166,21 @@ function updatePacketRateChart(rates) {
     const layout = {
         height: 300,
         margin: { t: 0, b: 30, l: 30, r: 10 },
-        yaxis: { title: 'Packets/s' },
-        xaxis: { title: 'Time (last 60 seconds)' }
+        yaxis: { title: 'Packets/s', color: '#ffffff' },
+        xaxis: { title: 'Time (last 60 seconds)', color: '#ffffff' },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: {
+            color: '#ffffff'
+        }
     };
 
-    Plotly.newPlot('packet-rate-chart', data, layout);
+    const config = {
+        responsive: true,
+        displayModeBar: false
+    };
+
+    Plotly.newPlot('packet-rate-chart', data, layout, config);
 }
 
 function updateTopIPs(ips) {
@@ -269,8 +309,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function updateRealTimeMetrics(packet) {
-    // Placeholder for updating real-time metrics based on individual packets
-    //  This might involve updating counters or other elements on the dashboard.
+    // Update real-time metrics based on individual packets
+    //  This involves updating counters or other elements on the dashboard
 }
 
 async function generatePDFReport() {
