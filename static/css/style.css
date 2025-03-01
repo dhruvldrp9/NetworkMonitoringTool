@@ -12,6 +12,8 @@ body {
 
 .dashboard {
     padding: 20px;
+    max-width: 1800px;
+    margin: 0 auto;
 }
 
 header {
@@ -41,6 +43,9 @@ header {
 .card h2 {
     margin-bottom: 15px;
     color: #2c3e50;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .threats-container {
@@ -146,8 +151,15 @@ header {
 }
 
 .log-entry {
-    padding: 5px;
+    padding: 8px;
     border-bottom: 1px solid #eee;
+    display: flex;
+    gap: 10px;
+}
+
+.log-time {
+    color: #666;
+    font-size: 0.9em;
 }
 
 .status {
@@ -175,12 +187,66 @@ header {
     justify-content: center;
     gap: 10px;
     margin-top: 10px;
+    flex-wrap: wrap;
 }
 
 .severity-count {
     padding: 3px 8px;
     border-radius: 3px;
     font-size: 0.8em;
+}
+
+.ip-entry {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    position: relative;
+    margin: 5px 0;
+}
+
+.ip-address {
+    flex: 1;
+    z-index: 1;
+}
+
+.packet-count {
+    margin-left: 10px;
+    color: #666;
+    z-index: 1;
+}
+
+.progress-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    background-color: rgba(52, 152, 219, 0.1);
+    transition: width 0.3s ease;
+}
+
+.threshold-controls {
+    margin-bottom: 15px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+
+.threshold-group {
+    margin: 10px 0;
+}
+
+.threshold-group label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9em;
+}
+
+.threshold-control {
+    width: 100px;
+    padding: 4px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
 }
 
 /* Animation for new threats */
@@ -197,4 +263,25 @@ header {
 
 .threat-item {
     animation: threatAppear 0.3s ease-out;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+    .grid-container {
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard {
+        padding: 10px;
+    }
+
+    .card {
+        padding: 15px;
+    }
+
+    .grid-container {
+        grid-template-columns: 1fr;
+    }
 }

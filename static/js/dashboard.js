@@ -4,6 +4,8 @@ const socket = io();
 // Charts and data storage
 let protocolChart = null;
 let packetRateChart = null;
+let connectionHeatmap = null;
+let attackPatternChart = null;
 let recentThreats = [];
 
 // Socket event handlers
@@ -22,15 +24,20 @@ socket.on('stats_update', (data) => {
     updateProtocolChart(data.protocols);
     updatePacketRateChart(data.packet_rates);
     updateTopIPs(data.top_ips);
+    updateConnectionHeatmap(data.connections);
+    updateAttackPatterns(data.attacks);
 });
 
 socket.on('threat_detected', (threat) => {
     addThreat(threat);
     addActivityLog(`Threat detected: ${threat.type} from ${threat.source}`);
+    updateThreatCounter(threat.category, threat.severity);
+    playAlertSound(threat.severity);
 });
 
 socket.on('packet_processed', (packet) => {
     addActivityLog(`Processed ${packet.protocol} packet: ${packet.src_ip} -> ${packet.dst_ip}`);
+    updateRealTimeMetrics(packet);
 });
 
 // Update functions
@@ -39,34 +46,98 @@ function updateTrafficStats(stats) {
     document.getElementById('packets-per-second').textContent = 
         stats.general.packets_per_second.toFixed(2);
     document.getElementById('total-bytes').textContent = formatBytes(stats.general.total_bytes);
+
+    // Update additional metrics
+    document.getElementById('unique-ips').textContent = stats.general.unique_ips || 0;
+    document.getElementById('avg-packet-size').textContent = 
+        formatBytes(stats.general.avg_packet_size || 0);
 }
 
 function updateProtocolChart(protocols) {
     const data = [{
         values: Object.values(protocols),
         labels: Object.keys(protocols),
-        type: 'pie'
+        type: 'pie',
+        hole: 0.4,
+        marker: {
+            colors: [
+                '#2ecc71', '#3498db', '#9b59b6', 
+                '#e74c3c', '#f1c40f', '#1abc9c'
+            ]
+        }
     }];
 
     const layout = {
         height: 300,
-        margin: { t: 0, b: 0, l: 0, r: 0 }
+        margin: { t: 0, b: 0, l: 0, r: 0 },
+        showlegend: true,
+        legend: {
+            orientation: 'h',
+            y: -0.2
+        }
     };
 
     Plotly.newPlot('protocol-chart', data, layout);
+}
+
+function updateConnectionHeatmap(connections) {
+    if (!connections) return;
+
+    const data = [{
+        x: connections.dst_ips,
+        y: connections.src_ips,
+        z: connections.counts,
+        type: 'heatmap',
+        colorscale: 'Viridis'
+    }];
+
+    const layout = {
+        height: 400,
+        margin: { t: 30, b: 40, l: 100, r: 20 },
+        title: 'Connection Heatmap',
+        xaxis: { title: 'Destination IPs' },
+        yaxis: { title: 'Source IPs' }
+    };
+
+    Plotly.newPlot('connection-heatmap', data, layout);
+}
+
+function updateAttackPatterns(attacks) {
+    if (!attacks) return;
+
+    const data = [{
+        type: 'scatter',
+        mode: 'lines+markers',
+        x: attacks.timestamps,
+        y: attacks.counts,
+        line: { color: '#e74c3c' },
+        name: 'Attack Events'
+    }];
+
+    const layout = {
+        height: 300,
+        margin: { t: 30, b: 40, l: 50, r: 20 },
+        title: 'Attack Pattern Timeline',
+        xaxis: { title: 'Time' },
+        yaxis: { title: 'Attack Count' }
+    };
+
+    Plotly.newPlot('attack-pattern-chart', data, layout);
 }
 
 function updatePacketRateChart(rates) {
     const data = [{
         y: rates,
         type: 'line',
-        name: 'Packets/s'
+        name: 'Packets/s',
+        line: { color: '#2ecc71' }
     }];
 
     const layout = {
         height: 300,
         margin: { t: 0, b: 30, l: 30, r: 10 },
-        yaxis: { title: 'Packets/s' }
+        yaxis: { title: 'Packets/s' },
+        xaxis: { title: 'Time (last 60 seconds)' }
     };
 
     Plotly.newPlot('packet-rate-chart', data, layout);
@@ -75,7 +146,13 @@ function updatePacketRateChart(rates) {
 function updateTopIPs(ips) {
     const container = document.getElementById('top-ips');
     container.innerHTML = Object.entries(ips)
-        .map(([ip, count]) => `<div>${ip}: ${count} packets</div>`)
+        .map(([ip, count]) => `
+            <div class="ip-entry">
+                <span class="ip-address">${ip}</span>
+                <span class="packet-count">${count} packets</span>
+                <div class="progress-bar" style="width: ${(count / Math.max(...Object.values(ips)) * 100)}%"></div>
+            </div>
+        `)
         .join('');
 }
 
@@ -102,7 +179,7 @@ function addThreat(threat) {
         container.removeChild(container.lastChild);
     }
 
-    // Update threat counter
+    // Update threat counter and trigger alert
     updateThreatCounter(threat.category, threat.severity);
 }
 
@@ -123,12 +200,21 @@ function updateThreatCounter(category, severity) {
 
     counterElement.dataset.threats = JSON.stringify(counts);
 
-    // Update the display
+    // Update the display with animated counters
     counterElement.innerHTML = `
-        <div>Total Threats: ${counts.total}</div>
+        <div class="total-threats">Total Threats: ${counts.total}</div>
         <div class="threat-breakdown">
             ${Object.entries(counts.severities).map(([sev, count]) => 
-                `<div class="severity-count ${sev}">${sev}: ${count}</div>`
+                `<div class="severity-count ${sev}">
+                    ${sev}: <span class="count">${count}</span>
+                </div>`
+            ).join('')}
+        </div>
+        <div class="category-breakdown">
+            ${Object.entries(counts.categories).map(([cat, count]) =>
+                `<div class="category-count ${cat}">
+                    ${cat}: <span class="count">${count}</span>
+                </div>`
             ).join('')}
         </div>
     `;
@@ -138,7 +224,10 @@ function addActivityLog(message) {
     const container = document.getElementById('activity-log');
     const logEntry = document.createElement('div');
     logEntry.className = 'log-entry';
-    logEntry.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
+    logEntry.innerHTML = `
+        <span class="log-time">${new Date().toLocaleTimeString()}</span>
+        <span class="log-message">${message}</span>
+    `;
     container.insertBefore(logEntry, container.firstChild);
 
     // Keep only last 100 log entries
@@ -156,4 +245,27 @@ function formatBytes(bytes) {
         unitIndex++;
     }
     return `${size.toFixed(2)} ${units[unitIndex]}`;
+}
+
+function playAlertSound(severity) {
+    const audio = new Audio(`/static/sounds/${severity}-alert.mp3`);
+    audio.play().catch(e => console.log('Audio playback failed:', e));
+}
+
+// Initialize tooltips and other UI elements
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize threshold controls
+    const thresholdControls = document.querySelectorAll('.threshold-control');
+    thresholdControls.forEach(control => {
+        control.addEventListener('change', (e) => {
+            const type = e.target.dataset.type;
+            const value = e.target.value;
+            socket.emit('update_threshold', { type, value });
+        });
+    });
+});
+
+function updateRealTimeMetrics(packet) {
+    // Placeholder for updating real-time metrics based on individual packets
+    //  This might involve updating counters or other elements on the dashboard.
 }
