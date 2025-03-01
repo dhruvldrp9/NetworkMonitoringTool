@@ -40,7 +40,22 @@ stats_thread = None
 def dashboard():
     """Serve the dashboard page"""
     logger.info("Dashboard page accessed")
+    # Ensure analyzer is running
+    if not analyzer:
+        start_analyzer()
     return render_template('dashboard.html')
+
+@app.route('/api/initial-stats')
+def get_initial_stats():
+    """Get initial statistics for dashboard"""
+    try:
+        if analyzer and analyzer.stats_collector:
+            stats = analyzer.stats_collector.get_stats()
+            return jsonify(stats)
+        return jsonify({'error': 'Analyzer not initialized'}), 503
+    except Exception as e:
+        logger.error(f"Error getting initial stats: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to get statistics'}), 500
 
 @app.route('/generate_report', methods=['POST'])
 def generate_report():
@@ -80,64 +95,71 @@ def generate_report():
         elements.append(Paragraph(f"Generated on: {timestamp}", normal_style))
         elements.append(Spacer(1, 12))
 
-        if analyzer and analyzer.stats_collector:
-            stats = analyzer.stats_collector.get_stats()
-            logger.debug(f"Current stats for report: {stats}")
+        # Get stats with error handling
+        stats = {}
+        if analyzer and hasattr(analyzer, 'stats_collector'):
+            try:
+                stats = analyzer.stats_collector.get_stats()
+                logger.debug(f"Retrieved stats for report: {stats}")
+            except Exception as e:
+                logger.error(f"Error getting stats: {e}", exc_info=True)
+                stats = {}
 
-            # Executive Summary
-            elements.append(Paragraph("Executive Summary", heading_style))
-            summary_text = """
-            This report provides a comprehensive analysis of network traffic patterns,
-            security threats, and anomalies detected by our advanced monitoring system.
-            The analysis includes both traditional threat detection and machine learning-based
-            anomaly detection results.
-            """
-            elements.append(Paragraph(summary_text, normal_style))
-            elements.append(Spacer(1, 20))
+        # Executive Summary
+        elements.append(Paragraph("Executive Summary", heading_style))
+        summary_text = """
+        This report provides a comprehensive analysis of network traffic patterns,
+        security threats, and anomalies detected by our advanced monitoring system.
+        The analysis includes both traditional threat detection and machine learning-based
+        anomaly detection results.
+        """
+        elements.append(Paragraph(summary_text, normal_style))
+        elements.append(Spacer(1, 20))
 
-            # Traffic Overview
-            elements.append(Paragraph("Traffic Overview", heading_style))
-            traffic_data = [
-                ["Metric", "Value"],
-                ["Total Packets", str(stats['general'].get('total_packets', 0))],
-                ["Packets/Second", f"{stats['general'].get('packets_per_second', 0):.2f}"],
-                ["Total Bytes", str(stats['general'].get('total_bytes', 0))],
-                ["Unique IPs", str(stats['general'].get('unique_ips', 0))],
-                ["Average Packet Size", f"{stats['general'].get('avg_packet_size', 0):.2f} bytes"]
-            ]
-            traffic_table = Table(traffic_data, colWidths=[4*inch, 4*inch])
-            traffic_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        # Traffic Overview
+        elements.append(Paragraph("Traffic Overview", heading_style))
+        traffic_data = [
+            ["Metric", "Value"],
+            ["Total Packets", str(stats.get('general', {}).get('total_packets', 0))],
+            ["Packets/Second", f"{stats.get('general', {}).get('packets_per_second', 0):.2f}"],
+            ["Total Bytes", str(stats.get('general', {}).get('total_bytes', 0))],
+            ["Unique IPs", str(stats.get('general', {}).get('unique_ips', 0))],
+            ["Average Packet Size", f"{stats.get('general', {}).get('avg_packet_size', 0):.2f} bytes"]
+        ]
+        traffic_table = Table(traffic_data, colWidths=[4*inch, 4*inch])
+        traffic_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        elements.append(traffic_table)
+        elements.append(Spacer(1, 20))
+
+        # Protocol Distribution
+        if 'protocols' in stats:
+            elements.append(Paragraph("Protocol Distribution", heading_style))
+            protocol_data = [["Protocol", "Count"]]
+            for protocol, count in stats['protocols'].items():
+                protocol_data.append([protocol, str(count)])
+            protocol_table = Table(protocol_data, colWidths=[4*inch, 4*inch])
+            protocol_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.blue),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 14),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
-            elements.append(traffic_table)
+            elements.append(protocol_table)
             elements.append(Spacer(1, 20))
 
-            # Protocol Distribution
-            if 'protocols' in stats:
-                elements.append(Paragraph("Protocol Distribution", heading_style))
-                protocol_data = [["Protocol", "Count"]]
-                for protocol, count in stats['protocols'].items():
-                    protocol_data.append([protocol, str(count)])
-                protocol_table = Table(protocol_data, colWidths=[4*inch, 4*inch])
-                protocol_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.blue),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
-                ]))
-                elements.append(protocol_table)
-                elements.append(Spacer(1, 20))
-
-            # Security Threats
-            elements.append(Paragraph("Recent Security Threats", heading_style))
+        # Security Threats
+        elements.append(Paragraph("Recent Security Threats", heading_style))
+        try:
             recent_threats = analyzer.db_manager.get_recent_threats(limit=10)
             if recent_threats:
                 threat_data = [["Time", "Type", "Source", "Severity", "Details"]]
@@ -159,10 +181,15 @@ def generate_report():
                 elements.append(threat_table)
             else:
                 elements.append(Paragraph("No recent threats detected", normal_style))
+        except Exception as e:
+            logger.error(f"Error getting threats: {e}", exc_info=True)
+            elements.append(Paragraph("Error retrieving threat data", normal_style))
 
-            # ML Anomalies
-            elements.append(Spacer(1, 20))
-            elements.append(Paragraph("Machine Learning Anomaly Detection", heading_style))
+
+        # ML Anomalies
+        elements.append(Spacer(1, 20))
+        elements.append(Paragraph("Machine Learning Anomaly Detection", heading_style))
+        try:
             recent_anomalies = analyzer.db_manager.get_recent_anomalies(limit=10)
             if recent_anomalies:
                 anomaly_data = [["Time", "Source", "Confidence", "Details"]]
@@ -183,38 +210,41 @@ def generate_report():
                 elements.append(anomaly_table)
             else:
                 elements.append(Paragraph("No recent anomalies detected", normal_style))
+        except Exception as e:
+            logger.error(f"Error getting anomalies: {e}", exc_info=True)
+            elements.append(Paragraph("Error retrieving anomaly data", normal_style))
 
-            # Network Performance
-            if 'performance' in stats:
-                elements.append(Spacer(1, 20))
-                elements.append(Paragraph("Network Performance Metrics", heading_style))
-                perf_data = [["Metric", "Value"]]
-                perf = stats['performance']
-                perf_data.extend([
-                    ["Packet Loss Rate", f"{perf.get('packet_loss', 0):.2f}%"],
-                    ["Network Latency", f"{perf.get('latency', 0):.2f}ms"],
-                    ["Bandwidth Usage", f"{perf.get('bandwidth', 0):.2f} Mbps"]
-                ])
-                perf_table = Table(perf_data, colWidths=[4*inch, 4*inch])
-                perf_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.green),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
-                ]))
-                elements.append(perf_table)
-
-            # Recommendations
+        # Network Performance
+        if 'performance' in stats:
             elements.append(Spacer(1, 20))
-            elements.append(Paragraph("Security Recommendations", heading_style))
-            recommendations = """
-            Based on the analysis of network traffic and detected threats, we recommend:
-            1. Regular monitoring of high-risk IPs identified in this report
-            2. Implementation of additional security measures for frequently targeted services
-            3. Investigation of any unusual protocol distributions
-            4. Follow-up on high-confidence ML anomaly detections
-            """
-            elements.append(Paragraph(recommendations, normal_style))
+            elements.append(Paragraph("Network Performance Metrics", heading_style))
+            perf_data = [["Metric", "Value"]]
+            perf = stats['performance']
+            perf_data.extend([
+                ["Packet Loss Rate", f"{perf.get('packet_loss', 0):.2f}%"],
+                ["Network Latency", f"{perf.get('latency', 0):.2f}ms"],
+                ["Bandwidth Usage", f"{perf.get('bandwidth', 0):.2f} Mbps"]
+            ])
+            perf_table = Table(perf_data, colWidths=[4*inch, 4*inch])
+            perf_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.green),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            elements.append(perf_table)
+
+        # Recommendations
+        elements.append(Spacer(1, 20))
+        elements.append(Paragraph("Security Recommendations", heading_style))
+        recommendations = """
+        Based on the analysis of network traffic and detected threats, we recommend:
+        1. Regular monitoring of high-risk IPs identified in this report
+        2. Implementation of additional security measures for frequently targeted services
+        3. Investigation of any unusual protocol distributions
+        4. Follow-up on high-confidence ML anomaly detections
+        """
+        elements.append(Paragraph(recommendations, normal_style))
 
         # Build PDF
         doc.build(elements)
@@ -340,7 +370,7 @@ if __name__ == '__main__':
     try:
         logger.info("Starting Network Traffic Analyzer Dashboard...")
         start_analyzer()
-        socketio.run(app, 
+        socketio.run(app,
                     host='0.0.0.0',
                     port=5000,
                     debug=False,  # Set to False to avoid duplicate analyzers

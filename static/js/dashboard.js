@@ -8,6 +8,42 @@ let connectionHeatmap = null;
 let attackPatternChart = null;
 let recentThreats = [];
 
+// Initialize dashboard with loading states
+document.addEventListener('DOMContentLoaded', () => {
+    // Show loading states
+    document.querySelectorAll('.chart-container').forEach(container => {
+        container.innerHTML = '<div class="loading">Loading data...</div>';
+    });
+
+    // Fetch initial data
+    fetch('/api/initial-stats')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            // Initialize all charts with initial data
+            updateTrafficStats(data);
+            updateProtocolChart(data.protocols);
+            updatePacketRateChart(data.packet_rates);
+            updateTopIPs(data.top_ips);
+            updateConnectionHeatmap(data.connections);
+            updateAttackPatterns(data.attacks);
+        })
+        .catch(error => {
+            console.error('Error loading initial data:', error);
+            document.querySelectorAll('.chart-container').forEach(container => {
+                container.innerHTML = '<div class="error">Failed to load data. Retrying...</div>';
+            });
+        });
+
+    // Initialize threshold controls
+    initializeControls();
+
+    // Handle window resize for charts
+    window.addEventListener('resize', debounce(handleResize, 250));
+});
+
 // Socket event handlers
 socket.on('connect', () => {
     document.getElementById('status').className = 'active';
@@ -42,6 +78,8 @@ socket.on('packet_processed', (packet) => {
 
 // Update functions
 function updateTrafficStats(stats) {
+    if (!stats.general) return;
+
     const elements = {
         'total-packets': stats.general.total_packets,
         'packets-per-second': stats.general.packets_per_second.toFixed(2),
@@ -61,6 +99,8 @@ function updateTrafficStats(stats) {
 }
 
 function updateProtocolChart(protocols) {
+    if (!protocols) return;
+
     const data = [{
         values: Object.values(protocols),
         labels: Object.keys(protocols),
@@ -94,11 +134,15 @@ function updateProtocolChart(protocols) {
         displayModeBar: false
     };
 
-    Plotly.newPlot('protocol-chart', data, layout, config);
+    const container = document.getElementById('protocol-chart');
+    if (container) {
+        layout.height = container.clientHeight;
+        Plotly.newPlot('protocol-chart', data, layout, config);
+    }
 }
 
 function updateConnectionHeatmap(connections) {
-    if (!connections) return;
+    if (!connections || !connections.counts || !connections.counts.length) return;
 
     const data = [{
         x: connections.dst_ips,
@@ -109,15 +153,13 @@ function updateConnectionHeatmap(connections) {
     }];
 
     const layout = {
-        margin: { t: 30, b: 40, l: 100, r: 20 },
         title: 'Connection Heatmap',
+        margin: { t: 30, b: 40, l: 100, r: 20 },
         xaxis: { title: 'Destination IPs', color: '#ffffff' },
         yaxis: { title: 'Source IPs', color: '#ffffff' },
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)',
-        font: {
-            color: '#ffffff'
-        }
+        font: { color: '#ffffff' }
     };
 
     const config = {
@@ -125,27 +167,23 @@ function updateConnectionHeatmap(connections) {
         displayModeBar: false
     };
 
-    // Get container height
     const container = document.getElementById('connection-heatmap');
-    layout.height = container.clientHeight;
-
-    Plotly.newPlot('connection-heatmap', data, layout, config);
+    if (container) {
+        layout.height = container.clientHeight;
+        Plotly.newPlot('connection-heatmap', data, layout, config);
+    }
 }
 
 function updateAttackPatterns(attacks) {
+    const container = document.getElementById('attack-pattern-chart');
+    if (!container) return;
+
     if (!attacks || !attacks.timestamps || !attacks.counts ||
         attacks.timestamps.length === 0 || attacks.counts.length === 0) {
-        console.log("No attack pattern data available");
-        const container = document.getElementById('attack-pattern-chart');
-        if (container) {
-            container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-secondary);">No attack pattern data available</div>';
-        }
+        container.innerHTML = '<div class="no-data">No attack pattern data available</div>';
         return;
     }
 
-    console.log(`Attack data available: ${attacks.timestamps.length} events`);
-
-    // Convert timestamps to readable format
     const formattedTimes = attacks.timestamps.map(ts => {
         const date = new Date(ts * 1000);
         return date.toLocaleTimeString();
@@ -165,8 +203,9 @@ function updateAttackPatterns(attacks) {
     }];
 
     const layout = {
-        margin: { t: 30, b: 40, l: 50, r: 20 },
         title: 'Attack Pattern Timeline',
+        margin: { t: 30, b: 40, l: 50, r: 20 },
+        height: container.clientHeight,
         xaxis: {
             title: 'Time',
             color: '#ffffff',
@@ -181,9 +220,7 @@ function updateAttackPatterns(attacks) {
         },
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)',
-        font: {
-            color: '#ffffff'
-        }
+        font: { color: '#ffffff' }
     };
 
     const config = {
@@ -191,17 +228,12 @@ function updateAttackPatterns(attacks) {
         displayModeBar: false
     };
 
-    // Get container height
-    const container = document.getElementById('attack-pattern-chart');
-    if (container) {
-        layout.height = container.clientHeight;
-        console.log(`Chart container height: ${container.clientHeight}px`);
-    }
-
     Plotly.newPlot('attack-pattern-chart', data, layout, config);
 }
 
 function updatePacketRateChart(rates) {
+    if (!rates) return;
+
     const data = [{
         y: rates,
         type: 'line',
@@ -215,9 +247,7 @@ function updatePacketRateChart(rates) {
         xaxis: { title: 'Time (last 60 seconds)', color: '#ffffff' },
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)',
-        font: {
-            color: '#ffffff'
-        }
+        font: { color: '#ffffff' }
     };
 
     const config = {
@@ -225,16 +255,16 @@ function updatePacketRateChart(rates) {
         displayModeBar: false
     };
 
-    // Get container height
     const container = document.getElementById('packet-rate-chart');
-    layout.height = container.clientHeight;
-
-    Plotly.newPlot('packet-rate-chart', data, layout, config);
+    if (container) {
+        layout.height = container.clientHeight;
+        Plotly.newPlot('packet-rate-chart', data, layout, config);
+    }
 }
 
 function updateTopIPs(ips) {
     const container = document.getElementById('top-ips');
-    if (!container) return;
+    if (!container || !ips) return;
 
     const maxCount = Math.max(...Object.values(ips));
     container.innerHTML = Object.entries(ips)
@@ -246,6 +276,132 @@ function updateTopIPs(ips) {
             </div>
         `)
         .join('');
+}
+
+async function generatePDFReport() {
+    const spinner = document.getElementById('loadingSpinner');
+    spinner.style.display = 'block';
+
+    try {
+        const response = await fetch('/generate_report', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                timestamp: new Date().toISOString()
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `security_report_${new Date().toISOString().split('T')[0]}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    } catch (error) {
+        console.error('Error generating PDF report:', error);
+        alert('Failed to generate PDF report. Please try again.');
+    } finally {
+        spinner.style.display = 'none';
+    }
+}
+
+// Helper functions
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${units[i]}`;
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+function handleResize() {
+    const charts = [
+        { id: 'connection-heatmap', data: connectionHeatmap?.data },
+        { id: 'attack-pattern-chart', data: attackPatternChart?.data },
+        { id: 'packet-rate-chart', data: packetRateChart?.data },
+        { id: 'protocol-chart', data: protocolChart?.data }
+    ];
+
+    charts.forEach(({ id, data }) => {
+        const container = document.getElementById(id);
+        if (container && data) {
+            const layout = { height: container.clientHeight };
+            Plotly.relayout(id, layout);
+        }
+    });
+}
+
+function initializeControls() {
+    // Initialize PDF report download
+    const downloadButton = document.getElementById('downloadReport');
+    if (downloadButton) {
+        downloadButton.addEventListener('click', generatePDFReport);
+    }
+
+    // Initialize threat filters
+    initializeFilters();
+}
+
+function initializeFilters() {
+    const filterControls = document.querySelectorAll('.filter-control');
+    filterControls.forEach(control => {
+        control.addEventListener('change', applyFilters);
+    });
+}
+
+function applyFilters() {
+    const severityFilter = document.querySelector('#severity-filter')?.value;
+    const categoryFilter = document.querySelector('#category-filter')?.value;
+    const sourceFilter = document.querySelector('#source-filter')?.value;
+    const timeFilter = document.querySelector('#time-filter')?.value;
+
+    const threats = document.querySelectorAll('.threat-item');
+    threats.forEach(threat => {
+        let show = true;
+
+        if (severityFilter && !threat.classList.contains(severityFilter)) {
+            show = false;
+        }
+        if (categoryFilter && !threat.classList.contains(categoryFilter)) {
+            show = false;
+        }
+        if (sourceFilter) {
+            const sourceText = threat.querySelector('.threat-details')?.textContent;
+            if (!sourceText?.includes(sourceFilter)) {
+                show = false;
+            }
+        }
+        if (timeFilter) {
+            const threatTime = new Date(threat.querySelector('.threat-time')?.textContent);
+            const filterTime = new Date();
+            filterTime.setHours(filterTime.getHours() - parseInt(timeFilter));
+            if (threatTime < filterTime) {
+                show = false;
+            }
+        }
+
+        threat.style.display = show ? 'block' : 'none';
+    });
 }
 
 function addThreat(threat) {
@@ -325,59 +481,6 @@ function addActivityLog(message) {
     }
 }
 
-function formatBytes(bytes) {
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let size = bytes;
-    let unitIndex = 0;
-    while (size >= 1024 && unitIndex < units.length - 1) {
-        size /= 1024;
-        unitIndex++;
-    }
-    return `${size.toFixed(2)} ${units[unitIndex]}`;
-}
-
-function playAlertSound(severity) {
-    const audio = new Audio(`/static/sounds/${severity}-alert.mp3`);
-    audio.play().catch(e => console.log('Audio playback failed:', e));
-}
-
-// Initialize tooltips and other UI elements
-document.addEventListener('DOMContentLoaded', () => {
-    // Initialize threshold controls
-    const thresholdControls = document.querySelectorAll('.threshold-control');
-    thresholdControls.forEach(control => {
-        control.addEventListener('change', (e) => {
-            const type = e.target.dataset.type;
-            const value = e.target.value;
-            socket.emit('update_threshold', { type, value });
-        });
-    });
-
-    // Initialize PDF report download
-    document.getElementById('downloadReport').addEventListener('click', generatePDFReport);
-
-    // Initialize threat filters
-    initializeFilters();
-
-    // Handle window resize for charts
-    window.addEventListener('resize', () => {
-        const charts = [
-            { id: 'connection-heatmap', data: connectionHeatmap?.data },
-            { id: 'attack-pattern-chart', data: attackPatternChart?.data },
-            { id: 'packet-rate-chart', data: packetRateChart?.data },
-            { id: 'protocol-chart', data: protocolChart?.data }
-        ];
-
-        charts.forEach(({ id, data }) => {
-            const container = document.getElementById(id);
-            if (container && data) {
-                const layout = { height: container.clientHeight };
-                Plotly.relayout(id, layout);
-            }
-        });
-    });
-});
-
 function updateRealTimeMetrics(packet) {
     // Update performance metrics
     const lossElement = document.getElementById('packet-loss');
@@ -391,82 +494,7 @@ function updateRealTimeMetrics(packet) {
     }
 }
 
-async function generatePDFReport() {
-    const spinner = document.getElementById('loadingSpinner');
-    spinner.style.display = 'block';
-
-    try {
-        const response = await fetch('/generate_report', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                timestamp: new Date().toISOString()
-            })
-        });
-
-        if (response.ok) {
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `security_report_${new Date().toISOString().split('T')[0]}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-        } else {
-            console.error('Failed to generate PDF report');
-        }
-    } catch (error) {
-        console.error('Error generating PDF report:', error);
-    } finally {
-        spinner.style.display = 'none';
-    }
-}
-
-// Initialize threat filters
-function initializeFilters() {
-    const filterControls = document.querySelectorAll('.filter-control');
-    filterControls.forEach(control => {
-        control.addEventListener('change', () => {
-            applyFilters();
-        });
-    });
-}
-
-function applyFilters() {
-    const severityFilter = document.querySelector('#severity-filter').value;
-    const categoryFilter = document.querySelector('#category-filter').value;
-    const sourceFilter = document.querySelector('#source-filter').value;
-    const timeFilter = document.querySelector('#time-filter').value;
-
-    const threats = document.querySelectorAll('.threat-item');
-    threats.forEach(threat => {
-        let show = true;
-
-        if (severityFilter && !threat.classList.contains(severityFilter)) {
-            show = false;
-        }
-        if (categoryFilter && !threat.classList.contains(categoryFilter)) {
-            show = false;
-        }
-        if (sourceFilter) {
-            const sourceText = threat.querySelector('.threat-details').textContent;
-            if (!sourceText.includes(sourceFilter)) {
-                show = false;
-            }
-        }
-        if (timeFilter) {
-            const threatTime = new Date(threat.querySelector('.threat-time').textContent);
-            const filterTime = new Date();
-            filterTime.setHours(filterTime.getHours() - parseInt(timeFilter));
-            if (threatTime < filterTime) {
-                show = false;
-            }
-        }
-
-        threat.style.display = show ? 'block' : 'none';
-    });
+function playAlertSound(severity) {
+    const audio = new Audio(`/static/sounds/${severity}-alert.mp3`);
+    audio.play().catch(e => console.log('Audio playback failed:', e));
 }
