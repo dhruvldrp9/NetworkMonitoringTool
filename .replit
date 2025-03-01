@@ -15,6 +15,10 @@ author = "agent"
 task = "workflow.run"
 args = "Network Analyzer"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Network Dashboard"
+
 [[workflows.workflow]]
 name = "Network Analyzer"
 author = "agent"
@@ -29,5 +33,24 @@ task = "packager.installForAll"
 task = "shell.exec"
 args = "python network_analyzer.py"
 
+[[workflows.workflow]]
+name = "Network Dashboard"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python dashboard.py"
+waitForPort = 5000
+
 [deployment]
 run = ["sh", "-c", "python network_analyzer.py"]
+
+[[ports]]
+localPort = 5000
+externalPort = 80

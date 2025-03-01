@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Traffic Analyzer Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <div class="dashboard">
+        <header>
+            <h1>Network Traffic Analyzer</h1>
+            <div class="status">Status: <span id="status">Running</span></div>
+        </header>
+        
+        <div class="grid-container">
+            <div class="card">
+                <h2>Traffic Overview</h2>
+                <div id="traffic-stats">
+                    <p>Total Packets: <span id="total-packets">0</span></p>
+                    <p>Packets/Second: <span id="packets-per-second">0</span></p>
+                    <p>Total Bytes: <span id="total-bytes">0</span></p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Protocol Distribution</h2>
+                <div id="protocol-chart"></div>
+            </div>
+
+            <div class="card">
+                <h2>Threat Detection</h2>
+                <div id="threats-list" class="threats-container"></div>
+            </div>
+
+            <div class="card">
+                <h2>Top IPs</h2>
+                <div id="top-ips"></div>
+            </div>
+
+            <div class="card">
+                <h2>Packet Rate</h2>
+                <div id="packet-rate-chart"></div>
+            </div>
+
+            <div class="card">
+                <h2>Recent Activity</h2>
+                <div id="activity-log" class="log-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
