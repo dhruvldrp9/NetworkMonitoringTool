@@ -59,10 +59,18 @@ def get_initial_stats():
 
 @app.route('/generate_report', methods=['POST'])
 def generate_report():
+    """Generate a PDF report of the current security analysis"""
     try:
         # Create PDF buffer
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=landscape(letter))
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=landscape(letter),
+            rightMargin=30,
+            leftMargin=30,
+            topMargin=30,
+            bottomMargin=30
+        )
         styles = getSampleStyleSheet()
         elements = []
 
@@ -126,8 +134,8 @@ def generate_report():
             ["Unique IPs", str(stats.get('general', {}).get('unique_ips', 0))],
             ["Average Packet Size", f"{stats.get('general', {}).get('avg_packet_size', 0):.2f} bytes"]
         ]
-        traffic_table = Table(traffic_data, colWidths=[4*inch, 4*inch])
-        traffic_table.setStyle(TableStyle([
+        table = Table(traffic_data, colWidths=[4*inch, 4*inch])
+        table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -138,7 +146,7 @@ def generate_report():
             ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]))
-        elements.append(traffic_table)
+        elements.append(table)
         elements.append(Spacer(1, 20))
 
         # Protocol Distribution
@@ -147,23 +155,23 @@ def generate_report():
             protocol_data = [["Protocol", "Count"]]
             for protocol, count in stats['protocols'].items():
                 protocol_data.append([protocol, str(count)])
-            protocol_table = Table(protocol_data, colWidths=[4*inch, 4*inch])
-            protocol_table.setStyle(TableStyle([
+            table = Table(protocol_data, colWidths=[4*inch, 4*inch])
+            table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.blue),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
-            elements.append(protocol_table)
+            elements.append(table)
             elements.append(Spacer(1, 20))
 
         # Security Threats
         elements.append(Paragraph("Recent Security Threats", heading_style))
         try:
-            recent_threats = analyzer.db_manager.get_recent_threats(limit=10)
-            if recent_threats:
+            threats = analyzer.db_manager.get_recent_threats(limit=10)
+            if threats:
                 threat_data = [["Time", "Type", "Source", "Severity", "Details"]]
-                for threat in recent_threats:
+                for threat in threats:
                     threat_data.append([
                         threat.timestamp.strftime("%H:%M:%S"),
                         threat.type,
@@ -171,43 +179,42 @@ def generate_report():
                         threat.severity,
                         threat.details[:50] + "..." if len(threat.details) > 50 else threat.details
                     ])
-                threat_table = Table(threat_data, colWidths=[1.5*inch, 2*inch, 2*inch, 1.5*inch, 3*inch])
-                threat_table.setStyle(TableStyle([
+                table = Table(threat_data, colWidths=[1.5*inch, 2*inch, 2*inch, 1.5*inch, 3*inch])
+                table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.red),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ]))
-                elements.append(threat_table)
+                elements.append(table)
             else:
                 elements.append(Paragraph("No recent threats detected", normal_style))
         except Exception as e:
             logger.error(f"Error getting threats: {e}", exc_info=True)
             elements.append(Paragraph("Error retrieving threat data", normal_style))
 
-
         # ML Anomalies
         elements.append(Spacer(1, 20))
         elements.append(Paragraph("Machine Learning Anomaly Detection", heading_style))
         try:
-            recent_anomalies = analyzer.db_manager.get_recent_anomalies(limit=10)
-            if recent_anomalies:
+            anomalies = analyzer.db_manager.get_recent_anomalies(limit=10)
+            if anomalies:
                 anomaly_data = [["Time", "Source", "Confidence", "Details"]]
-                for anomaly in recent_anomalies:
+                for anomaly in anomalies:
                     anomaly_data.append([
                         anomaly.timestamp.strftime("%H:%M:%S"),
                         anomaly.source,
                         f"{anomaly.confidence:.2f}",
                         anomaly.details[:50] + "..." if len(anomaly.details) > 50 else anomaly.details
                     ])
-                anomaly_table = Table(anomaly_data, colWidths=[2*inch, 2*inch, 2*inch, 4*inch])
-                anomaly_table.setStyle(TableStyle([
+                table = Table(anomaly_data, colWidths=[2*inch, 2*inch, 2*inch, 4*inch])
+                table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.purple),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ]))
-                elements.append(anomaly_table)
+                elements.append(table)
             else:
                 elements.append(Paragraph("No recent anomalies detected", normal_style))
         except Exception as e:
@@ -225,14 +232,14 @@ def generate_report():
                 ["Network Latency", f"{perf.get('latency', 0):.2f}ms"],
                 ["Bandwidth Usage", f"{perf.get('bandwidth', 0):.2f} Mbps"]
             ])
-            perf_table = Table(perf_data, colWidths=[4*inch, 4*inch])
-            perf_table.setStyle(TableStyle([
+            table = Table(perf_data, colWidths=[4*inch, 4*inch])
+            table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.green),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
-            elements.append(perf_table)
+            elements.append(table)
 
         # Recommendations
         elements.append(Spacer(1, 20))
@@ -253,15 +260,24 @@ def generate_report():
         # Generate filename with timestamp
         filename = f'security_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
 
-        return send_file(
-            buffer,
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name=filename
-        )
+        try:
+            response = send_file(
+                buffer,
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=filename
+            )
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+            return response
+        except Exception as e:
+            logger.error(f"Error sending PDF file: {e}", exc_info=True)
+            return jsonify({"error": "Failed to send report"}), 500
+
     except Exception as e:
         logger.error(f"Error generating PDF report: {e}", exc_info=True)
-        return jsonify({"error": "Failed to generate report"}), 500
+        return jsonify({"error": str(e)}), 500
 
 def emit_stats():
     """Emit statistics periodically via Socket.IO"""
