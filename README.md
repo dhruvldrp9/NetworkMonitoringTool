@@ -1,5 +1,8 @@
 # Network Security Analysis Platform
 
+![Network_Monitoring_Tool](https://github.com/user-attachments/assets/1319728a-7d6a-4608-9d7a-77d166d5e95c)
+
+
 A cutting-edge network security analysis platform that combines advanced packet capture, real-time threat visualization, and intelligent anomaly detection.
 
 ## Features
